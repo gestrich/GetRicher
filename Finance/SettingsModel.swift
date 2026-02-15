@@ -5,9 +5,9 @@ import KeychainSDK
 class SettingsModel {
     var state: State = .idle
 
-    private let keychainClient: KeychainClient
+    private let keychainClient: any KeychainClientProtocol
 
-    init(keychainClient: KeychainClient) {
+    init(keychainClient: any KeychainClientProtocol) {
         self.keychainClient = keychainClient
     }
 

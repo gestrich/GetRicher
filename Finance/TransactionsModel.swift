@@ -11,7 +11,7 @@ class TransactionsModel {
     private let fetchTransactionsUseCase: FetchTransactionsUseCase
     private let pageSize: Int
 
-    init(lunchMoneyClient: LunchMoneyClient, keychainClient: KeychainClient, pageSize: Int) {
+    init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol, pageSize: Int) {
         self.pageSize = pageSize
         self.fetchTransactionsUseCase = FetchTransactionsUseCase(
             lunchMoneyClient: lunchMoneyClient,

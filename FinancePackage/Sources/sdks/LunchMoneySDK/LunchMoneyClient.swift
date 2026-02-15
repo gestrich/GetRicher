@@ -1,6 +1,19 @@
 import Foundation
 
-public struct LunchMoneyClient: Sendable {
+public protocol LunchMoneyClientProtocol: Sendable {
+    func fetchTransactions(
+        token: String,
+        accountId: Int?,
+        startDate: String,
+        endDate: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> TransactionsResponse
+
+    func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponse
+}
+
+public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
     private let baseURL: String
 
     public init(baseURL: String = "https://dev.lunchmoney.app/v1") {
@@ -79,6 +92,10 @@ public enum LunchMoneyError: Error, Sendable {
 
 public struct TransactionsResponse: Codable, Sendable {
     public let transactions: [LunchMoneyTransaction]
+
+    public init(transactions: [LunchMoneyTransaction]) {
+        self.transactions = transactions
+    }
 }
 
 public struct LunchMoneyTransaction: Codable, Sendable {
@@ -132,6 +149,10 @@ public struct LunchMoneyTransaction: Codable, Sendable {
     public let externalId: String?
     public let tags: [LunchMoneyTag]?
 
+    public init(id: Int, date: String, payee: String, amount: String, currency: String, toBase: Double, notes: String?, originalName: String, categoryId: Int?, categoryName: String?, categoryGroupId: Int?, categoryGroupName: String?, status: String, isIncome: Bool, isPending: Bool, excludeFromBudget: Bool, excludeFromTotals: Bool, createdAt: String, updatedAt: String, recurringId: Int?, recurringPayee: String?, recurringDescription: String?, recurringCadence: String?, recurringGranularity: String?, recurringQuantity: Int?, recurringType: String?, recurringAmount: String?, recurringCurrency: String?, parentId: Int?, hasChildren: Bool, groupId: Int?, isGroup: Bool, assetId: Int?, assetInstitutionName: String?, assetName: String?, assetDisplayName: String?, assetStatus: String?, plaidAccountId: Int?, plaidAccountName: String?, plaidAccountMask: String?, institutionName: String?, plaidAccountDisplayName: String?, plaidMetadata: String?, source: String?, displayName: String?, displayNotes: String?, accountDisplayName: String?, externalId: String?, tags: [LunchMoneyTag]?) {
+        self.id = id; self.date = date; self.payee = payee; self.amount = amount; self.currency = currency; self.toBase = toBase; self.notes = notes; self.originalName = originalName; self.categoryId = categoryId; self.categoryName = categoryName; self.categoryGroupId = categoryGroupId; self.categoryGroupName = categoryGroupName; self.status = status; self.isIncome = isIncome; self.isPending = isPending; self.excludeFromBudget = excludeFromBudget; self.excludeFromTotals = excludeFromTotals; self.createdAt = createdAt; self.updatedAt = updatedAt; self.recurringId = recurringId; self.recurringPayee = recurringPayee; self.recurringDescription = recurringDescription; self.recurringCadence = recurringCadence; self.recurringGranularity = recurringGranularity; self.recurringQuantity = recurringQuantity; self.recurringType = recurringType; self.recurringAmount = recurringAmount; self.recurringCurrency = recurringCurrency; self.parentId = parentId; self.hasChildren = hasChildren; self.groupId = groupId; self.isGroup = isGroup; self.assetId = assetId; self.assetInstitutionName = assetInstitutionName; self.assetName = assetName; self.assetDisplayName = assetDisplayName; self.assetStatus = assetStatus; self.plaidAccountId = plaidAccountId; self.plaidAccountName = plaidAccountName; self.plaidAccountMask = plaidAccountMask; self.institutionName = institutionName; self.plaidAccountDisplayName = plaidAccountDisplayName; self.plaidMetadata = plaidMetadata; self.source = source; self.displayName = displayName; self.displayNotes = displayNotes; self.accountDisplayName = accountDisplayName; self.externalId = externalId; self.tags = tags
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, date, payee, amount, currency, notes, status, source, tags
         case toBase = "to_base"
@@ -180,10 +201,19 @@ public struct LunchMoneyTransaction: Codable, Sendable {
 public struct LunchMoneyTag: Codable, Sendable {
     public let id: Int?
     public let name: String?
+
+    public init(id: Int?, name: String?) {
+        self.id = id
+        self.name = name
+    }
 }
 
 public struct PlaidAccountsResponse: Codable, Sendable {
     public let plaidAccounts: [LunchMoneyPlaidAccount]
+
+    public init(plaidAccounts: [LunchMoneyPlaidAccount]) {
+        self.plaidAccounts = plaidAccounts
+    }
 
     enum CodingKeys: String, CodingKey {
         case plaidAccounts = "plaid_accounts"
@@ -201,6 +231,10 @@ public struct LunchMoneyPlaidAccount: Codable, Sendable {
     public let status: String
     public let balance: String
     public let currency: String
+
+    public init(id: Int, name: String, displayName: String, type: String, subtype: String, mask: String, institutionName: String, status: String, balance: String, currency: String) {
+        self.id = id; self.name = name; self.displayName = displayName; self.type = type; self.subtype = subtype; self.mask = mask; self.institutionName = institutionName; self.status = status; self.balance = balance; self.currency = currency
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, name, type, subtype, mask, status, balance, currency

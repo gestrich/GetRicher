@@ -10,7 +10,7 @@ class AccountsModel {
 
     private let fetchAccountsUseCase: FetchAccountsUseCase
 
-    init(lunchMoneyClient: LunchMoneyClient, keychainClient: KeychainClient) {
+    init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol) {
         self.fetchAccountsUseCase = FetchAccountsUseCase(
             lunchMoneyClient: lunchMoneyClient,
             keychainClient: keychainClient

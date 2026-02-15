@@ -9,8 +9,19 @@ struct FinanceApp: App {
     @State private var settingsModel: SettingsModel
 
     init() {
-        let keychainClient = KeychainClient()
-        let lunchMoneyClient = LunchMoneyClient()
+        let isDemoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
+
+        let keychainClient: any KeychainClientProtocol
+        let lunchMoneyClient: any LunchMoneyClientProtocol
+
+        if isDemoMode {
+            keychainClient = DemoKeychainClient()
+            lunchMoneyClient = DemoLunchMoneyClient()
+        } else {
+            keychainClient = KeychainClient()
+            lunchMoneyClient = LunchMoneyClient()
+        }
+
         let pageSize = 200
         _transactionsModel = State(initialValue: TransactionsModel(
             lunchMoneyClient: lunchMoneyClient,

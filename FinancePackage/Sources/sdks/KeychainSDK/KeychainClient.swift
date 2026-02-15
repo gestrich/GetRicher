@@ -1,7 +1,13 @@
 import Foundation
 import Security
 
-public struct KeychainClient: Sendable {
+public protocol KeychainClientProtocol: Sendable {
+    func saveAPIToken(_ token: String) throws
+    func getAPIToken() -> String?
+    func deleteAPIToken() throws
+}
+
+public struct KeychainClient: KeychainClientProtocol, Sendable {
     private let service: String
     private let apiTokenKey: String
 

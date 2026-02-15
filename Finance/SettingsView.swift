@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(SettingsModel.self) var settingsModel
     @State private var apiToken: String = ""
+    @AppStorage("demoMode") private var isDemoMode: Bool = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -37,6 +38,14 @@ struct SettingsView: View {
                         Text(error)
                             .foregroundColor(.red)
                     }
+                }
+
+                Section {
+                    Toggle("Demo Mode", isOn: $isDemoMode)
+                } header: {
+                    Text("Demo")
+                } footer: {
+                    Text("Uses sample data instead of real API calls. Restart the app after toggling.")
                 }
 
                 Section {

@@ -26,13 +26,13 @@ public struct FetchTransactionsUseCase: UseCase {
         public let hasMore: Bool
     }
 
-    private let lunchMoneyClient: LunchMoneyClient
-    private let keychainClient: KeychainClient
+    private let lunchMoneyClient: any LunchMoneyClientProtocol
+    private let keychainClient: any KeychainClientProtocol
     private let pageSize: Int
 
     public init(
-        lunchMoneyClient: LunchMoneyClient,
-        keychainClient: KeychainClient,
+        lunchMoneyClient: any LunchMoneyClientProtocol,
+        keychainClient: any KeychainClientProtocol,
         pageSize: Int
     ) {
         self.lunchMoneyClient = lunchMoneyClient

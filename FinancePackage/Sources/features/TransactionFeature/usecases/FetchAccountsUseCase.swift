@@ -7,10 +7,10 @@ public struct FetchAccountsUseCase: UseCase {
     public typealias Options = Void
     public typealias Result = [PlaidAccount]
 
-    private let lunchMoneyClient: LunchMoneyClient
-    private let keychainClient: KeychainClient
+    private let lunchMoneyClient: any LunchMoneyClientProtocol
+    private let keychainClient: any KeychainClientProtocol
 
-    public init(lunchMoneyClient: LunchMoneyClient, keychainClient: KeychainClient) {
+    public init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol) {
         self.lunchMoneyClient = lunchMoneyClient
         self.keychainClient = keychainClient
     }
