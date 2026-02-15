@@ -1,25 +1,24 @@
-//
-//  KeychainService.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
 import Foundation
 import Security
 
-class KeychainService {
-    static let shared = KeychainService()
+public protocol KeychainClientProtocol: Sendable {
+    func saveAPIToken(_ token: String) throws
+    func getAPIToken() -> String?
+    func deleteAPIToken() throws
+}
 
-    private let service = "com.finance.app"
-    private let apiTokenKey = "lunchmoney.apiToken"
+public struct KeychainClient: KeychainClientProtocol, Sendable {
+    private let service: String
+    private let apiTokenKey: String
 
-    private init() {}
+    public init(service: String = "com.finance.app", apiTokenKey: String = "lunchmoney.apiToken") {
+        self.service = service
+        self.apiTokenKey = apiTokenKey
+    }
 
-    func saveAPIToken(_ token: String) throws {
+    public func saveAPIToken(_ token: String) throws {
         let data = token.data(using: .utf8)!
 
-        // Delete any existing item
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -27,7 +26,6 @@ class KeychainService {
         ]
         SecItemDelete(deleteQuery as CFDictionary)
 
-        // Add new item
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -42,7 +40,7 @@ class KeychainService {
         }
     }
 
-    func getAPIToken() -> String? {
+    public func getAPIToken() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -63,7 +61,7 @@ class KeychainService {
         return token
     }
 
-    func deleteAPIToken() throws {
+    public func deleteAPIToken() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -78,7 +76,7 @@ class KeychainService {
     }
 }
 
-enum KeychainError: Error {
+public enum KeychainError: Error, Sendable {
     case unableToStore
     case unableToDelete
 }

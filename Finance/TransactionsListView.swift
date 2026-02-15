@@ -1,21 +1,15 @@
-//
-//  TransactionsListView.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
+import CoreService
 import SwiftUI
 
 struct TransactionsListView: View {
-    @State private var service = LunchMoneyService()
+    @Environment(TransactionsModel.self) var transactionsModel
 
     var body: some View {
         NavigationStack {
             Group {
-                if service.isLoading {
+                if transactionsModel.isLoading {
                     ProgressView("Loading transactions...")
-                } else if let errorMessage = service.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -26,14 +20,17 @@ struct TransactionsListView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            Task {
-                                await service.fetchTransactions()
-                            }
+                            let dateRange = DateFilter.all.dateRange
+                            transactionsModel.fetchTransactions(
+                                accountId: nil,
+                                startDate: dateRange.start,
+                                endDate: dateRange.end
+                            )
                         }
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if service.transactions.isEmpty {
+                } else if transactionsModel.transactions.isEmpty {
                     ContentUnavailableView(
                         "No Transactions",
                         systemImage: "list.bullet.rectangle",
@@ -41,7 +38,7 @@ struct TransactionsListView: View {
                     )
                 } else {
                     List {
-                        ForEach(service.transactions) { transaction in
+                        ForEach(transactionsModel.transactions) { transaction in
                             NavigationLink {
                                 TransactionDetailView(transaction: transaction)
                             } label: {
@@ -49,16 +46,19 @@ struct TransactionsListView: View {
                             }
                         }
 
-                        if service.hasMore {
+                        if transactionsModel.hasMore {
                             Section {
                                 Button {
-                                    Task {
-                                        await service.loadMoreTransactions()
-                                    }
+                                    let dateRange = DateFilter.all.dateRange
+                                    transactionsModel.loadMore(
+                                        accountId: nil,
+                                        startDate: dateRange.start,
+                                        endDate: dateRange.end
+                                    )
                                 } label: {
                                     HStack {
                                         Spacer()
-                                        if service.isLoadingMore {
+                                        if transactionsModel.isLoadingMore {
                                             ProgressView()
                                                 .padding(.horizontal, 8)
                                             Text("Loading...")
@@ -68,7 +68,7 @@ struct TransactionsListView: View {
                                         Spacer()
                                     }
                                 }
-                                .disabled(service.isLoadingMore)
+                                .disabled(transactionsModel.isLoadingMore)
                             }
                         }
                     }
@@ -76,17 +76,27 @@ struct TransactionsListView: View {
             }
             .navigationTitle("Transactions")
             .task {
-                await service.fetchTransactions()
+                let dateRange = DateFilter.all.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: nil,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
             .refreshable {
-                await service.fetchTransactions()
+                let dateRange = DateFilter.all.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: nil,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
         }
     }
 }
 
 struct TransactionRow: View {
-    let transaction: Transaction
+    let transaction: CoreService.Transaction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -149,8 +159,4 @@ struct TransactionRow: View {
             return .blue
         }
     }
-}
-
-#Preview {
-    TransactionsListView()
 }

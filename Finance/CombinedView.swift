@@ -1,49 +1,17 @@
-//
-//  CombinedView.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
-import SwiftUI
 import Charts
-
-enum DateFilter: String, CaseIterable {
-    case week = "Week"
-    case month = "Month"
-    case year = "Year"
-    case all = "All"
-
-    var dateRange: (start: Date, end: Date) {
-        let calendar = Calendar.current
-        let now = Date()
-
-        switch self {
-        case .week:
-            let sunday = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
-            return (sunday, now)
-        case .month:
-            let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-            return (startOfMonth, now)
-        case .year:
-            let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now))!
-            return (startOfYear, now)
-        case .all:
-            let twoYearsAgo = calendar.date(byAdding: .year, value: -2, to: now)!
-            return (twoYearsAgo, now)
-        }
-    }
-}
+import CoreService
+import SwiftUI
 
 struct CombinedView: View {
-    @State private var service = LunchMoneyService()
+    @Environment(TransactionsModel.self) var transactionsModel
+    @Environment(AccountsModel.self) var accountsModel
     @State private var selectedAccountId: Int? = nil
     @State private var selectedDateFilter: DateFilter = .all
     @State private var showSettings = false
 
     private var selectedAccountBalance: String? {
         guard let accountId = selectedAccountId,
-              let account = service.plaidAccounts.first(where: { $0.id == accountId }) else {
+              let account = accountsModel.accounts.first(where: { $0.id == accountId }) else {
             return nil
         }
         return CurrencyFormatter.format(amount: account.balance, currency: account.currency)
@@ -52,9 +20,9 @@ struct CombinedView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if service.isLoading {
+                if transactionsModel.isLoading {
                     ProgressView("Loading...")
-                } else if let errorMessage = service.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -65,15 +33,12 @@ struct CombinedView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            Task {
-                                await service.fetchPlaidAccounts()
-                                await service.fetchTransactions()
-                            }
+                            fetchData()
                         }
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if service.transactions.isEmpty {
+                } else if transactionsModel.transactions.isEmpty {
                     ContentUnavailableView(
                         "No Data",
                         systemImage: "chart.bar",
@@ -82,14 +47,13 @@ struct CombinedView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            let filteredTransactions = filterTransactions(service.transactions)
-                            let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
+                            let vendorSpending = VendorSpending.aggregate(from: transactionsModel.transactions)
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             VStack(spacing: 12) {
                                 Picker("Account", selection: $selectedAccountId) {
                                     Text("All Accounts").tag(nil as Int?)
-                                    ForEach(service.plaidAccounts) { account in
+                                    ForEach(accountsModel.accounts) { account in
                                         Text(account.displayName).tag(account.id as Int?)
                                     }
                                 }
@@ -177,7 +141,7 @@ struct CombinedView: View {
                                     .font(.headline)
                                     .padding(.horizontal)
 
-                                ForEach(filteredTransactions.prefix(50)) { transaction in
+                                ForEach(transactionsModel.transactions.prefix(50)) { transaction in
                                     NavigationLink {
                                         TransactionDetailView(transaction: transaction)
                                     } label: {
@@ -186,16 +150,18 @@ struct CombinedView: View {
                                     .buttonStyle(.plain)
                                 }
 
-                                if service.hasMore {
+                                if transactionsModel.hasMore {
                                     Button {
-                                        Task {
-                                            let dateRange = selectedDateFilter.dateRange
-                                            await service.loadMoreTransactions(accountId: selectedAccountId, startDate: dateRange.start, endDate: dateRange.end)
-                                        }
+                                        let dateRange = selectedDateFilter.dateRange
+                                        transactionsModel.loadMore(
+                                            accountId: selectedAccountId,
+                                            startDate: dateRange.start,
+                                            endDate: dateRange.end
+                                        )
                                     } label: {
                                         HStack {
                                             Spacer()
-                                            if service.isLoadingMore {
+                                            if transactionsModel.isLoadingMore {
                                                 ProgressView()
                                                     .padding(.horizontal, 8)
                                                 Text("Loading...")
@@ -205,7 +171,7 @@ struct CombinedView: View {
                                             Spacer()
                                         }
                                     }
-                                    .disabled(service.isLoadingMore)
+                                    .disabled(transactionsModel.isLoadingMore)
                                     .padding()
                                 }
                             }
@@ -228,35 +194,42 @@ struct CombinedView: View {
                 SettingsView()
             }
             .task {
-                await service.fetchPlaidAccounts()
-                let dateRange = selectedDateFilter.dateRange
-                await service.fetchTransactions(accountId: selectedAccountId, startDate: dateRange.start, endDate: dateRange.end)
+                fetchData()
             }
             .refreshable {
                 let dateRange = selectedDateFilter.dateRange
-                await service.fetchTransactions(accountId: selectedAccountId, startDate: dateRange.start, endDate: dateRange.end)
+                transactionsModel.fetchTransactions(
+                    accountId: selectedAccountId,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
             .onChange(of: selectedAccountId) { _, newValue in
-                Task {
-                    let dateRange = selectedDateFilter.dateRange
-                    await service.fetchTransactions(accountId: newValue, startDate: dateRange.start, endDate: dateRange.end)
-                }
+                let dateRange = selectedDateFilter.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: newValue,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
             .onChange(of: selectedDateFilter) { _, newValue in
-                Task {
-                    let dateRange = newValue.dateRange
-                    await service.fetchTransactions(accountId: selectedAccountId, startDate: dateRange.start, endDate: dateRange.end)
-                }
+                let dateRange = newValue.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: selectedAccountId,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
         }
     }
 
-    private func filterTransactions(_ transactions: [Transaction]) -> [Transaction] {
-        // No filtering needed since we're fetching per account from the API
-        return transactions
+    private func fetchData() {
+        accountsModel.fetchAccounts()
+        let dateRange = selectedDateFilter.dateRange
+        transactionsModel.fetchTransactions(
+            accountId: selectedAccountId,
+            startDate: dateRange.start,
+            endDate: dateRange.end
+        )
     }
-}
-
-#Preview {
-    CombinedView()
 }

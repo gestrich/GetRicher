@@ -1,23 +1,22 @@
-//
-//  VendorSpending.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
 import Foundation
 
-struct VendorSpending: Identifiable {
-    let id = UUID()
-    let vendor: String
-    let totalAmount: Double
-    let transactionCount: Int
+public struct VendorSpending: Identifiable, Sendable {
+    public let id: UUID
+    public let vendor: String
+    public let totalAmount: Double
+    public let transactionCount: Int
 
-    static func aggregate(from transactions: [Transaction]) -> [VendorSpending] {
+    public init(vendor: String, totalAmount: Double, transactionCount: Int) {
+        self.id = UUID()
+        self.vendor = vendor
+        self.totalAmount = totalAmount
+        self.transactionCount = transactionCount
+    }
+
+    public static func aggregate(from transactions: [Transaction]) -> [VendorSpending] {
         var vendorTotals: [String: (total: Double, count: Int)] = [:]
 
         for transaction in transactions {
-            // Skip income transactions
             guard !transaction.isIncome else { continue }
 
             let vendor = transaction.payee
