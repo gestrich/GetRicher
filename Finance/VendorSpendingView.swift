@@ -1,23 +1,18 @@
-//
-//  VendorSpendingView.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
-import SwiftUI
 import Charts
+import CoreService
+import SwiftUI
 
 struct VendorSpendingView: View {
-    @State private var service = LunchMoneyService()
+    @Environment(TransactionsModel.self) var transactionsModel
+    @Environment(AccountsModel.self) var accountsModel
     @State private var selectedAccount: String = "All Accounts"
 
     var body: some View {
         NavigationStack {
             Group {
-                if service.isLoading {
+                if transactionsModel.isLoading {
                     ProgressView("Loading transactions...")
-                } else if let errorMessage = service.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -28,14 +23,17 @@ struct VendorSpendingView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            Task {
-                                await service.fetchTransactions()
-                            }
+                            let dateRange = DateFilter.all.dateRange
+                            transactionsModel.fetchTransactions(
+                                accountId: nil,
+                                startDate: dateRange.start,
+                                endDate: dateRange.end
+                            )
                         }
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if service.transactions.isEmpty {
+                } else if transactionsModel.transactions.isEmpty {
                     ContentUnavailableView(
                         "No Transactions",
                         systemImage: "chart.bar",
@@ -44,14 +42,14 @@ struct VendorSpendingView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            let filteredTransactions = filterTransactions(service.transactions)
+                            let filteredTransactions = filterTransactions(transactionsModel.transactions)
                             let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             Picker("Account", selection: $selectedAccount) {
                                 Text("All Accounts").tag("All Accounts")
-                                ForEach(availableAccounts, id: \.self) { account in
-                                    Text(account).tag(account)
+                                ForEach(accountsModel.accounts.map(\.displayName), id: \.self) { name in
+                                    Text(name).tag(name)
                                 }
                             }
                             .pickerStyle(.menu)
@@ -115,20 +113,26 @@ struct VendorSpendingView: View {
             }
             .navigationTitle("Spending by Vendor")
             .task {
-                await service.fetchPlaidAccounts()
-                await service.fetchTransactions()
+                accountsModel.fetchAccounts()
+                let dateRange = DateFilter.all.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: nil,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
             .refreshable {
-                await service.fetchTransactions()
+                let dateRange = DateFilter.all.dateRange
+                transactionsModel.fetchTransactions(
+                    accountId: nil,
+                    startDate: dateRange.start,
+                    endDate: dateRange.end
+                )
             }
         }
     }
 
-    private var availableAccounts: [String] {
-        return service.plaidAccounts.map { $0.displayName }
-    }
-
-    private func filterTransactions(_ transactions: [Transaction]) -> [Transaction] {
+    private func filterTransactions(_ transactions: [CoreService.Transaction]) -> [CoreService.Transaction] {
         if selectedAccount == "All Accounts" {
             return transactions
         }
@@ -158,8 +162,4 @@ struct VendorRow: View {
         .padding(.vertical, 8)
         .padding(.horizontal)
     }
-}
-
-#Preview {
-    VendorSpendingView()
 }

@@ -1,16 +1,8 @@
-//
-//  SettingsView.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(SettingsModel.self) var settingsModel
     @State private var apiToken: String = ""
-    @State private var showSuccess = false
-    @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -21,7 +13,7 @@ struct SettingsView: View {
                         .textContentType(.password)
 
                     Button("Save Token") {
-                        saveToken()
+                        settingsModel.saveToken(apiToken)
                     }
                     .disabled(apiToken.isEmpty)
                 } header: {
@@ -30,7 +22,7 @@ struct SettingsView: View {
                     Text("Enter your Lunch Money API token. It will be securely stored in the keychain.")
                 }
 
-                if showSuccess {
+                if settingsModel.isSaved {
                     Section {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
@@ -40,7 +32,7 @@ struct SettingsView: View {
                     }
                 }
 
-                if let error = errorMessage {
+                if let error = settingsModel.errorMessage {
                     Section {
                         Text(error)
                             .foregroundColor(.red)
@@ -49,7 +41,8 @@ struct SettingsView: View {
 
                 Section {
                     Button("Delete Token", role: .destructive) {
-                        deleteToken()
+                        settingsModel.deleteToken()
+                        apiToken = ""
                     }
                 } footer: {
                     Text("Remove the API token from keychain")
@@ -64,45 +57,11 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                loadExistingToken()
+                settingsModel.loadToken()
+                if let token = settingsModel.currentToken {
+                    apiToken = token
+                }
             }
         }
     }
-
-    private func loadExistingToken() {
-        if let token = KeychainService.shared.getAPIToken() {
-            apiToken = token
-        }
-    }
-
-    private func saveToken() {
-        do {
-            try KeychainService.shared.saveAPIToken(apiToken)
-            showSuccess = true
-            errorMessage = nil
-
-            Task {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                showSuccess = false
-            }
-        } catch {
-            errorMessage = "Failed to save token: \(error.localizedDescription)"
-            showSuccess = false
-        }
-    }
-
-    private func deleteToken() {
-        do {
-            try KeychainService.shared.deleteAPIToken()
-            apiToken = ""
-            showSuccess = false
-            errorMessage = nil
-        } catch {
-            errorMessage = "Failed to delete token: \(error.localizedDescription)"
-        }
-    }
-}
-
-#Preview {
-    SettingsView()
 }

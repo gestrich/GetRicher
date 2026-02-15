@@ -1,14 +1,8 @@
-//
-//  TransactionDetailView.swift
-//  Finance
-//
-//  Created by Bill Gestrich on 1/14/26.
-//
-
+import CoreService
 import SwiftUI
 
 struct TransactionDetailView: View {
-    let transaction: Transaction
+    let transaction: CoreService.Transaction
 
     var body: some View {
         List {
@@ -163,61 +157,5 @@ struct DetailRow: View {
                     .multilineTextAlignment(.trailing)
             }
         }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        TransactionDetailView(transaction: Transaction(
-            id: 1,
-            date: "2026-01-14",
-            payee: "Coffee Shop",
-            amount: "4.50",
-            currency: "usd",
-            toBase: 4.50,
-            notes: "Morning coffee",
-            originalName: "COFFEE SHOP #123",
-            categoryId: 100,
-            categoryName: "Food & Drink",
-            categoryGroupId: 10,
-            categoryGroupName: "Living",
-            status: "cleared",
-            isIncome: false,
-            isPending: false,
-            excludeFromBudget: false,
-            excludeFromTotals: false,
-            createdAt: "2026-01-14T10:31:34.031Z",
-            updatedAt: "2026-01-14T10:31:34.031Z",
-            recurringId: nil,
-            recurringPayee: nil,
-            recurringDescription: nil,
-            recurringCadence: nil,
-            recurringGranularity: nil,
-            recurringQuantity: nil,
-            recurringType: nil,
-            recurringAmount: nil,
-            recurringCurrency: nil,
-            parentId: nil,
-            hasChildren: false,
-            groupId: nil,
-            isGroup: false,
-            assetId: nil,
-            assetInstitutionName: nil,
-            assetName: nil,
-            assetDisplayName: nil,
-            assetStatus: nil,
-            plaidAccountId: 123,
-            plaidAccountName: "Checking",
-            plaidAccountMask: "1234",
-            institutionName: "Chase",
-            plaidAccountDisplayName: "Chase Checking",
-            plaidMetadata: nil,
-            source: "plaid",
-            displayName: "Coffee Shop",
-            displayNotes: nil,
-            accountDisplayName: "Chase Checking",
-            externalId: nil,
-            tags: nil
-        ))
     }
 }
