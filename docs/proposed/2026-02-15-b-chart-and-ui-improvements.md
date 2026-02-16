@@ -17,7 +17,10 @@ The app follows the 4-layer Swift architecture with Swift Charts (`SectorMark`, 
 
 ## Phases
 
-## - [ ] Phase 1: Fix pie chart label clipping
+## - [x] Phase 1: Fix pie chart label clipping
+
+**Skills used**: `swift-swiftui`, `swift-architecture`
+**Principles applied**: Removed overlay annotations from SectorMark to eliminate label clipping. The chart legend (enabled by default via `.foregroundStyle(by:)`) now serves as the vendor identifier. VendorSpendingView already had no annotations — no changes needed there. Both charts are now visually cohesive.
 
 **Skills to read**: `swift-swiftui`, `swift-architecture`
 

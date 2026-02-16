@@ -121,12 +121,6 @@ struct CombinedView: View {
                                             angularInset: 1.5
                                         )
                                         .foregroundStyle(by: .value("Vendor", vendor.vendor))
-                                        .annotation(position: .overlay) {
-                                            Text(CurrencyFormatter.format(amount: vendor.totalAmount, currency: "USD"))
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(.white)
-                                        }
                                     }
                                     .frame(height: 300)
                                     .padding()
