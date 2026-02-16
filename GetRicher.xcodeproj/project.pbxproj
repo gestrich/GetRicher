@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A964267F2F42994C0038587D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = A964267E2F42994C0038587D /* README.md */; };
 		B0000001300000000000001 /* CoreService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000001 /* CoreService */; };
 		B0000001300000000000002 /* KeychainSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000002 /* KeychainSDK */; };
 		B0000001300000000000003 /* LunchMoneySDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000003 /* LunchMoneySDK */; };
@@ -15,6 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A964267E2F42994C0038587D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		A995B8DC2F18604A00855692 /* GetRicher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GetRicher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -45,6 +47,7 @@
 		A995B8D32F18604A00855692 = {
 			isa = PBXGroup;
 			children = (
+				A964267E2F42994C0038587D /* README.md */,
 				A995B8DE2F18604A00855692 /* Finance */,
 				A995B8DD2F18604A00855692 /* Products */,
 			);
@@ -130,6 +133,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A964267F2F42994C0038587D /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
