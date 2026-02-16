@@ -18,7 +18,7 @@
                BlueprintIdentifier = "A995B8DB2F18604A00855692"
                BuildableName = "GetRicher.app"
                BlueprintName = "GetRicher"
-               ReferencedContainer = "container:Finance.xcodeproj">
+               ReferencedContainer = "container:GetRicher.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -47,7 +47,7 @@
             BlueprintIdentifier = "A995B8DB2F18604A00855692"
             BuildableName = "GetRicher.app"
             BlueprintName = "GetRicher"
-            ReferencedContainer = "container:Finance.xcodeproj">
+            ReferencedContainer = "container:GetRicher.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -64,7 +64,7 @@
             BlueprintIdentifier = "A995B8DB2F18604A00855692"
             BuildableName = "GetRicher.app"
             BlueprintName = "GetRicher"
-            ReferencedContainer = "container:Finance.xcodeproj">
+            ReferencedContainer = "container:GetRicher.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
