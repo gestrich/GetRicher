@@ -76,8 +76,11 @@ class TransactionsModel {
     }
 
     var hasMore: Bool {
-        if case .loaded(_, let hasMore) = state { return hasMore }
-        return false
+        switch state {
+        case .loaded(_, let hasMore): return hasMore
+        case .loadingMore: return true
+        default: return false
+        }
     }
 
     var errorMessage: String? {
