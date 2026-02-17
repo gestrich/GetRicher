@@ -22,7 +22,8 @@ struct FinanceApp: App {
             lunchMoneyClient = LunchMoneyClient()
         }
 
-        let pageSize = 200
+        let pageSizeOverride = UserDefaults.standard.integer(forKey: "pageSize")
+        let pageSize = pageSizeOverride > 0 ? pageSizeOverride : 200
         _transactionsModel = State(initialValue: TransactionsModel(
             lunchMoneyClient: lunchMoneyClient,
             keychainClient: keychainClient,

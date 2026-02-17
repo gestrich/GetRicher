@@ -17,12 +17,9 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
         limit: Int,
         offset: Int
     ) async throws -> TransactionsResponse {
-        guard offset == 0 else {
-            return TransactionsResponse(transactions: [])
-        }
-
-        let transactions = Self.generateTransactions(accountId: accountId)
-        return TransactionsResponse(transactions: transactions)
+        let allTransactions = Self.getTransactions(accountId: accountId)
+        let page = Array(allTransactions.dropFirst(offset).prefix(limit))
+        return TransactionsResponse(transactions: page)
     }
 
     func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponse {
@@ -31,6 +28,17 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
             LunchMoneyPlaidAccount(id: 2, name: "Credit Card", displayName: "Amex Gold", type: "credit", subtype: "credit card", mask: "1008", institutionName: "American Express", status: "active", balance: "1847.32", currency: "usd"),
             LunchMoneyPlaidAccount(id: 3, name: "Savings", displayName: "Ally Savings", type: "depository", subtype: "savings", mask: "7890", institutionName: "Ally Bank", status: "active", balance: "12450.00", currency: "usd"),
         ])
+    }
+
+    private static var cachedTransactions: [Int?: [LunchMoneyTransaction]] = [:]
+
+    private static func getTransactions(accountId: Int?) -> [LunchMoneyTransaction] {
+        if let cached = cachedTransactions[accountId] {
+            return cached
+        }
+        let transactions = generateTransactions(accountId: accountId)
+        cachedTransactions[accountId] = transactions
+        return transactions
     }
 
     private static func generateTransactions(accountId: Int?) -> [LunchMoneyTransaction] {
