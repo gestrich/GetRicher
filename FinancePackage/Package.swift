@@ -7,9 +7,10 @@ let package = Package(
     platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         .library(name: "CoreService", targets: ["CoreService"]),
+        .library(name: "PersistenceService", targets: ["PersistenceService"]),
+        .library(name: "SyncService", targets: ["SyncService"]),
         .library(name: "KeychainSDK", targets: ["KeychainSDK"]),
         .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
-        .library(name: "TransactionFeature", targets: ["TransactionFeature"]),
         .library(name: "Uniflow", targets: ["Uniflow"]),
     ],
     targets: [
@@ -31,11 +32,14 @@ let package = Package(
             name: "CoreService",
             path: "Sources/services/CoreService"
         ),
-        // Features Layer
         .target(
-            name: "TransactionFeature",
-            dependencies: ["CoreService", "KeychainSDK", "LunchMoneySDK", "Uniflow"],
-            path: "Sources/features/TransactionFeature"
+            name: "PersistenceService",
+            path: "Sources/services/PersistenceService"
+        ),
+        .target(
+            name: "SyncService",
+            dependencies: ["LunchMoneySDK", "PersistenceService", "KeychainSDK"],
+            path: "Sources/services/SyncService"
         ),
     ]
 )

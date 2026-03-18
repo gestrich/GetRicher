@@ -1,19 +1,23 @@
 import Foundation
+import SwiftData
 
-public struct PlaidAccount: Identifiable, Sendable {
-    public let id: Int
-    public let name: String
-    public let displayName: String
-    public let type: String
-    public let subtype: String
-    public let mask: String
-    public let institutionName: String
-    public let status: String
-    public let balance: String
-    public let currency: String
+@Model
+public final class PlaidAccount {
+    #Unique<PlaidAccount>([\.lunchMoneyId])
+
+    public var lunchMoneyId: Int
+    public var name: String
+    public var displayName: String
+    public var type: String
+    public var subtype: String
+    public var mask: String
+    public var institutionName: String
+    public var status: String
+    public var balance: String
+    public var currency: String
 
     public init(
-        id: Int,
+        lunchMoneyId: Int,
         name: String,
         displayName: String,
         type: String,
@@ -24,7 +28,7 @@ public struct PlaidAccount: Identifiable, Sendable {
         balance: String,
         currency: String
     ) {
-        self.id = id
+        self.lunchMoneyId = lunchMoneyId
         self.name = name
         self.displayName = displayName
         self.type = type

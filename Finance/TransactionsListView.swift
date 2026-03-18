@@ -1,15 +1,19 @@
 import CoreService
+import PersistenceService
+import SwiftData
 import SwiftUI
 
 struct TransactionsListView: View {
     @Environment(TransactionsModel.self) var transactionsModel
+    @Environment(\.modelContext) var modelContext
+    @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
 
     var body: some View {
         NavigationStack {
             Group {
-                if transactionsModel.isLoading {
+                if transactionsModel.isSyncing && transactions.isEmpty {
                     ProgressView("Loading transactions...")
-                } else if let errorMessage = transactionsModel.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage, transactions.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -21,7 +25,8 @@ struct TransactionsListView: View {
                             .foregroundStyle(.secondary)
                         Button("Retry") {
                             let dateRange = DateFilter.all.dateRange
-                            transactionsModel.fetchTransactions(
+                            transactionsModel.sync(
+                                context: modelContext,
                                 accountId: nil,
                                 startDate: dateRange.start,
                                 endDate: dateRange.end
@@ -30,7 +35,7 @@ struct TransactionsListView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if transactionsModel.transactions.isEmpty {
+                } else if transactions.isEmpty {
                     ContentUnavailableView(
                         "No Transactions",
                         systemImage: "list.bullet.rectangle",
@@ -38,37 +43,11 @@ struct TransactionsListView: View {
                     )
                 } else {
                     List {
-                        ForEach(transactionsModel.transactions) { transaction in
+                        ForEach(transactions) { transaction in
                             NavigationLink {
                                 TransactionDetailView(transaction: transaction)
                             } label: {
                                 TransactionRow(transaction: transaction)
-                            }
-                        }
-
-                        if transactionsModel.hasMore {
-                            Section {
-                                Button {
-                                    let dateRange = DateFilter.all.dateRange
-                                    transactionsModel.loadMore(
-                                        accountId: nil,
-                                        startDate: dateRange.start,
-                                        endDate: dateRange.end
-                                    )
-                                } label: {
-                                    HStack {
-                                        Spacer()
-                                        if transactionsModel.isLoadingMore {
-                                            ProgressView()
-                                                .padding(.horizontal, 8)
-                                            Text("Loading...")
-                                        } else {
-                                            Text("Load More")
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                                .disabled(transactionsModel.isLoadingMore)
                             }
                         }
                     }
@@ -77,7 +56,8 @@ struct TransactionsListView: View {
             .navigationTitle("Transactions")
             .task {
                 let dateRange = DateFilter.all.dateRange
-                transactionsModel.fetchTransactions(
+                transactionsModel.sync(
+                    context: modelContext,
                     accountId: nil,
                     startDate: dateRange.start,
                     endDate: dateRange.end
@@ -85,7 +65,8 @@ struct TransactionsListView: View {
             }
             .refreshable {
                 let dateRange = DateFilter.all.dateRange
-                transactionsModel.fetchTransactions(
+                transactionsModel.sync(
+                    context: modelContext,
                     accountId: nil,
                     startDate: dateRange.start,
                     endDate: dateRange.end
@@ -96,7 +77,7 @@ struct TransactionsListView: View {
 }
 
 struct TransactionRow: View {
-    let transaction: CoreService.Transaction
+    let transaction: PersistenceService.Transaction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

@@ -11,8 +11,9 @@
 		B0000001300000000000001 /* CoreService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000001 /* CoreService */; };
 		B0000001300000000000002 /* KeychainSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000002 /* KeychainSDK */; };
 		B0000001300000000000003 /* LunchMoneySDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000003 /* LunchMoneySDK */; };
-		B0000001300000000000004 /* TransactionFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000004 /* TransactionFeature */; };
 		B0000001300000000000005 /* Uniflow in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000005 /* Uniflow */; };
+		B0000001300000000000006 /* PersistenceService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000006 /* PersistenceService */; };
+		B0000001300000000000007 /* SyncService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000007 /* SyncService */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,7 +60,8 @@
 				B0000001300000000000001 /* CoreService in Frameworks */,
 				B0000001300000000000002 /* KeychainSDK in Frameworks */,
 				B0000001300000000000003 /* LunchMoneySDK in Frameworks */,
-				B0000001300000000000004 /* TransactionFeature in Frameworks */,
+				B0000001300000000000006 /* PersistenceService in Frameworks */,
+				B0000001300000000000007 /* SyncService in Frameworks */,
 				B0000001300000000000005 /* Uniflow in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -132,7 +134,8 @@
 				B0000002300000000000001 /* CoreService */,
 				B0000002300000000000002 /* KeychainSDK */,
 				B0000002300000000000003 /* LunchMoneySDK */,
-				B0000002300000000000004 /* TransactionFeature */,
+				B0000002300000000000006 /* PersistenceService */,
+				B0000002300000000000007 /* SyncService */,
 				B0000002300000000000005 /* Uniflow */,
 			);
 			productName = Finance;
@@ -504,9 +507,13 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = LunchMoneySDK;
 		};
-		B0000002300000000000004 /* TransactionFeature */ = {
+		B0000002300000000000006 /* PersistenceService */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = TransactionFeature;
+			productName = PersistenceService;
+		};
+		B0000002300000000000007 /* SyncService */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SyncService;
 		};
 		B0000002300000000000005 /* Uniflow */ = {
 			isa = XCSwiftPackageProductDependency;

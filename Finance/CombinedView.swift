@@ -1,17 +1,35 @@
 import Charts
 import CoreService
+import PersistenceService
+import SwiftData
 import SwiftUI
 
 struct CombinedView: View {
     @Environment(TransactionsModel.self) var transactionsModel
-    @Environment(AccountsModel.self) var accountsModel
+    @Environment(\.modelContext) var modelContext
+    @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
+    @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @State private var selectedAccountId: Int? = nil
     @State private var selectedDateFilter: DateFilter = .all
     @State private var showSettings = false
 
+    private var filteredTransactions: [PersistenceService.Transaction] {
+        let dateRange = selectedDateFilter.dateRange
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let start = formatter.string(from: dateRange.start)
+        let end = formatter.string(from: dateRange.end)
+
+        return transactions.filter { tx in
+            let dateMatch = tx.date >= start && tx.date <= end
+            let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
+            return dateMatch && accountMatch
+        }
+    }
+
     private var selectedAccountBalance: String? {
         guard let accountId = selectedAccountId,
-              let account = accountsModel.accounts.first(where: { $0.id == accountId }) else {
+              let account = accounts.first(where: { $0.lunchMoneyId == accountId }) else {
             return nil
         }
         return CurrencyFormatter.format(amount: account.balance, currency: account.currency)
@@ -20,9 +38,9 @@ struct CombinedView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if transactionsModel.isLoading {
+                if transactionsModel.isSyncing && transactions.isEmpty {
                     ProgressView("Loading...")
-                } else if let errorMessage = transactionsModel.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage, transactions.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -33,12 +51,12 @@ struct CombinedView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            fetchData()
+                            syncData()
                         }
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if transactionsModel.transactions.isEmpty {
+                } else if filteredTransactions.isEmpty && !transactionsModel.isSyncing {
                     ContentUnavailableView(
                         "No Data",
                         systemImage: "chart.bar",
@@ -47,14 +65,14 @@ struct CombinedView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            let vendorSpending = VendorSpending.aggregate(from: transactionsModel.transactions)
+                            let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             VStack(spacing: 12) {
                                 Picker("Account", selection: $selectedAccountId) {
                                     Text("All Accounts").tag(nil as Int?)
-                                    ForEach(accountsModel.accounts) { account in
-                                        Text(account.displayName).tag(account.id as Int?)
+                                    ForEach(accounts) { account in
+                                        Text(account.displayName).tag(account.lunchMoneyId as Int?)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -135,38 +153,13 @@ struct CombinedView: View {
                                     .font(.headline)
                                     .padding(.horizontal)
 
-                                ForEach(transactionsModel.transactions.prefix(50)) { transaction in
+                                ForEach(filteredTransactions.prefix(50)) { transaction in
                                     NavigationLink {
                                         TransactionDetailView(transaction: transaction)
                                     } label: {
                                         TransactionRow(transaction: transaction)
                                     }
                                     .buttonStyle(.plain)
-                                }
-
-                                if transactionsModel.hasMore {
-                                    Button {
-                                        let dateRange = selectedDateFilter.dateRange
-                                        transactionsModel.loadMore(
-                                            accountId: selectedAccountId,
-                                            startDate: dateRange.start,
-                                            endDate: dateRange.end
-                                        )
-                                    } label: {
-                                        HStack {
-                                            Spacer()
-                                            if transactionsModel.isLoadingMore {
-                                                ProgressView()
-                                                    .padding(.horizontal, 8)
-                                                Text("Loading...")
-                                            } else {
-                                                Text("Load More")
-                                            }
-                                            Spacer()
-                                        }
-                                    }
-                                    .disabled(transactionsModel.isLoadingMore)
-                                    .padding()
                                 }
                             }
                             .padding()
@@ -188,39 +181,24 @@ struct CombinedView: View {
                 SettingsView()
             }
             .task {
-                fetchData()
+                syncData()
             }
             .refreshable {
-                let dateRange = selectedDateFilter.dateRange
-                transactionsModel.fetchTransactions(
-                    accountId: selectedAccountId,
-                    startDate: dateRange.start,
-                    endDate: dateRange.end
-                )
+                syncData()
             }
-            .onChange(of: selectedAccountId) { _, newValue in
-                let dateRange = selectedDateFilter.dateRange
-                transactionsModel.fetchTransactions(
-                    accountId: newValue,
-                    startDate: dateRange.start,
-                    endDate: dateRange.end
-                )
+            .onChange(of: selectedAccountId) { _, _ in
+                syncData()
             }
-            .onChange(of: selectedDateFilter) { _, newValue in
-                let dateRange = newValue.dateRange
-                transactionsModel.fetchTransactions(
-                    accountId: selectedAccountId,
-                    startDate: dateRange.start,
-                    endDate: dateRange.end
-                )
+            .onChange(of: selectedDateFilter) { _, _ in
+                syncData()
             }
         }
     }
 
-    private func fetchData() {
-        accountsModel.fetchAccounts()
+    private func syncData() {
         let dateRange = selectedDateFilter.dateRange
-        transactionsModel.fetchTransactions(
+        transactionsModel.sync(
+            context: modelContext,
             accountId: selectedAccountId,
             startDate: dateRange.start,
             endDate: dateRange.end

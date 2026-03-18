@@ -8,9 +8,9 @@ public protocol LunchMoneyClientProtocol: Sendable {
         endDate: String,
         limit: Int,
         offset: Int
-    ) async throws -> TransactionsResponse
+    ) async throws -> TransactionsResponseDTO
 
-    func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponse
+    func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponseDTO
 }
 
 public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
@@ -27,7 +27,7 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
         endDate: String,
         limit: Int,
         offset: Int
-    ) async throws -> TransactionsResponse {
+    ) async throws -> TransactionsResponseDTO {
         var urlComponents = URLComponents(string: "\(baseURL)/transactions")
         var queryItems = [
             URLQueryItem(name: "start_date", value: startDate),
@@ -59,10 +59,10 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
             throw LunchMoneyError.serverError(httpResponse.statusCode)
         }
 
-        return try JSONDecoder().decode(TransactionsResponse.self, from: data)
+        return try JSONDecoder().decode(TransactionsResponseDTO.self, from: data)
     }
 
-    public func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponse {
+    public func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponseDTO {
         guard let url = URL(string: "\(baseURL)/plaid_accounts") else {
             throw LunchMoneyError.invalidURL
         }
@@ -80,7 +80,7 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
             throw LunchMoneyError.serverError(httpResponse.statusCode)
         }
 
-        return try JSONDecoder().decode(PlaidAccountsResponse.self, from: data)
+        return try JSONDecoder().decode(PlaidAccountsResponseDTO.self, from: data)
     }
 }
 
@@ -90,15 +90,15 @@ public enum LunchMoneyError: Error, Sendable {
     case serverError(Int)
 }
 
-public struct TransactionsResponse: Codable, Sendable {
-    public let transactions: [LunchMoneyTransaction]
+public struct TransactionsResponseDTO: Codable, Sendable {
+    public let transactions: [TransactionDTO]
 
-    public init(transactions: [LunchMoneyTransaction]) {
+    public init(transactions: [TransactionDTO]) {
         self.transactions = transactions
     }
 }
 
-public struct LunchMoneyTransaction: Codable, Sendable {
+public struct TransactionDTO: Codable, Sendable {
     public let id: Int
     public let date: String
     public let payee: String
@@ -147,9 +147,9 @@ public struct LunchMoneyTransaction: Codable, Sendable {
     public let displayNotes: String?
     public let accountDisplayName: String?
     public let externalId: String?
-    public let tags: [LunchMoneyTag]?
+    public let tags: [TagDTO]?
 
-    public init(id: Int, date: String, payee: String, amount: String, currency: String, toBase: Double, notes: String?, originalName: String, categoryId: Int?, categoryName: String?, categoryGroupId: Int?, categoryGroupName: String?, status: String, isIncome: Bool, isPending: Bool, excludeFromBudget: Bool, excludeFromTotals: Bool, createdAt: String, updatedAt: String, recurringId: Int?, recurringPayee: String?, recurringDescription: String?, recurringCadence: String?, recurringGranularity: String?, recurringQuantity: Int?, recurringType: String?, recurringAmount: String?, recurringCurrency: String?, parentId: Int?, hasChildren: Bool, groupId: Int?, isGroup: Bool, assetId: Int?, assetInstitutionName: String?, assetName: String?, assetDisplayName: String?, assetStatus: String?, plaidAccountId: Int?, plaidAccountName: String?, plaidAccountMask: String?, institutionName: String?, plaidAccountDisplayName: String?, plaidMetadata: String?, source: String?, displayName: String?, displayNotes: String?, accountDisplayName: String?, externalId: String?, tags: [LunchMoneyTag]?) {
+    public init(id: Int, date: String, payee: String, amount: String, currency: String, toBase: Double, notes: String?, originalName: String, categoryId: Int?, categoryName: String?, categoryGroupId: Int?, categoryGroupName: String?, status: String, isIncome: Bool, isPending: Bool, excludeFromBudget: Bool, excludeFromTotals: Bool, createdAt: String, updatedAt: String, recurringId: Int?, recurringPayee: String?, recurringDescription: String?, recurringCadence: String?, recurringGranularity: String?, recurringQuantity: Int?, recurringType: String?, recurringAmount: String?, recurringCurrency: String?, parentId: Int?, hasChildren: Bool, groupId: Int?, isGroup: Bool, assetId: Int?, assetInstitutionName: String?, assetName: String?, assetDisplayName: String?, assetStatus: String?, plaidAccountId: Int?, plaidAccountName: String?, plaidAccountMask: String?, institutionName: String?, plaidAccountDisplayName: String?, plaidMetadata: String?, source: String?, displayName: String?, displayNotes: String?, accountDisplayName: String?, externalId: String?, tags: [TagDTO]?) {
         self.id = id; self.date = date; self.payee = payee; self.amount = amount; self.currency = currency; self.toBase = toBase; self.notes = notes; self.originalName = originalName; self.categoryId = categoryId; self.categoryName = categoryName; self.categoryGroupId = categoryGroupId; self.categoryGroupName = categoryGroupName; self.status = status; self.isIncome = isIncome; self.isPending = isPending; self.excludeFromBudget = excludeFromBudget; self.excludeFromTotals = excludeFromTotals; self.createdAt = createdAt; self.updatedAt = updatedAt; self.recurringId = recurringId; self.recurringPayee = recurringPayee; self.recurringDescription = recurringDescription; self.recurringCadence = recurringCadence; self.recurringGranularity = recurringGranularity; self.recurringQuantity = recurringQuantity; self.recurringType = recurringType; self.recurringAmount = recurringAmount; self.recurringCurrency = recurringCurrency; self.parentId = parentId; self.hasChildren = hasChildren; self.groupId = groupId; self.isGroup = isGroup; self.assetId = assetId; self.assetInstitutionName = assetInstitutionName; self.assetName = assetName; self.assetDisplayName = assetDisplayName; self.assetStatus = assetStatus; self.plaidAccountId = plaidAccountId; self.plaidAccountName = plaidAccountName; self.plaidAccountMask = plaidAccountMask; self.institutionName = institutionName; self.plaidAccountDisplayName = plaidAccountDisplayName; self.plaidMetadata = plaidMetadata; self.source = source; self.displayName = displayName; self.displayNotes = displayNotes; self.accountDisplayName = accountDisplayName; self.externalId = externalId; self.tags = tags
     }
 
@@ -198,7 +198,7 @@ public struct LunchMoneyTransaction: Codable, Sendable {
     }
 }
 
-public struct LunchMoneyTag: Codable, Sendable {
+public struct TagDTO: Codable, Sendable {
     public let id: Int?
     public let name: String?
 
@@ -208,10 +208,10 @@ public struct LunchMoneyTag: Codable, Sendable {
     }
 }
 
-public struct PlaidAccountsResponse: Codable, Sendable {
-    public let plaidAccounts: [LunchMoneyPlaidAccount]
+public struct PlaidAccountsResponseDTO: Codable, Sendable {
+    public let plaidAccounts: [PlaidAccountDTO]
 
-    public init(plaidAccounts: [LunchMoneyPlaidAccount]) {
+    public init(plaidAccounts: [PlaidAccountDTO]) {
         self.plaidAccounts = plaidAccounts
     }
 
@@ -220,7 +220,7 @@ public struct PlaidAccountsResponse: Codable, Sendable {
     }
 }
 
-public struct LunchMoneyPlaidAccount: Codable, Sendable {
+public struct PlaidAccountDTO: Codable, Sendable {
     public let id: Int
     public let name: String
     public let displayName: String

@@ -1,18 +1,22 @@
 import Charts
 import CoreService
+import PersistenceService
+import SwiftData
 import SwiftUI
 
 struct VendorSpendingView: View {
     @Environment(TransactionsModel.self) var transactionsModel
-    @Environment(AccountsModel.self) var accountsModel
+    @Environment(\.modelContext) var modelContext
+    @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
+    @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @State private var selectedAccount: String = "All Accounts"
 
     var body: some View {
         NavigationStack {
             Group {
-                if transactionsModel.isLoading {
+                if transactionsModel.isSyncing && transactions.isEmpty {
                     ProgressView("Loading transactions...")
-                } else if let errorMessage = transactionsModel.errorMessage {
+                } else if let errorMessage = transactionsModel.errorMessage, transactions.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
@@ -24,7 +28,8 @@ struct VendorSpendingView: View {
                             .foregroundStyle(.secondary)
                         Button("Retry") {
                             let dateRange = DateFilter.all.dateRange
-                            transactionsModel.fetchTransactions(
+                            transactionsModel.sync(
+                                context: modelContext,
                                 accountId: nil,
                                 startDate: dateRange.start,
                                 endDate: dateRange.end
@@ -33,7 +38,7 @@ struct VendorSpendingView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if transactionsModel.transactions.isEmpty {
+                } else if transactions.isEmpty {
                     ContentUnavailableView(
                         "No Transactions",
                         systemImage: "chart.bar",
@@ -42,13 +47,13 @@ struct VendorSpendingView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            let filteredTransactions = filterTransactions(transactionsModel.transactions)
+                            let filteredTransactions = filterTransactions(transactions)
                             let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             Picker("Account", selection: $selectedAccount) {
                                 Text("All Accounts").tag("All Accounts")
-                                ForEach(accountsModel.accounts.map(\.displayName), id: \.self) { name in
+                                ForEach(accounts.map(\.displayName), id: \.self) { name in
                                     Text(name).tag(name)
                                 }
                             }
@@ -113,9 +118,9 @@ struct VendorSpendingView: View {
             }
             .navigationTitle("Spending by Vendor")
             .task {
-                accountsModel.fetchAccounts()
                 let dateRange = DateFilter.all.dateRange
-                transactionsModel.fetchTransactions(
+                transactionsModel.sync(
+                    context: modelContext,
                     accountId: nil,
                     startDate: dateRange.start,
                     endDate: dateRange.end
@@ -123,7 +128,8 @@ struct VendorSpendingView: View {
             }
             .refreshable {
                 let dateRange = DateFilter.all.dateRange
-                transactionsModel.fetchTransactions(
+                transactionsModel.sync(
+                    context: modelContext,
                     accountId: nil,
                     startDate: dateRange.start,
                     endDate: dateRange.end
@@ -132,7 +138,7 @@ struct VendorSpendingView: View {
         }
     }
 
-    private func filterTransactions(_ transactions: [CoreService.Transaction]) -> [CoreService.Transaction] {
+    private func filterTransactions(_ transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
         if selectedAccount == "All Accounts" {
             return transactions
         }

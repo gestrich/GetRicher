@@ -1,98 +1,55 @@
-import CoreService
 import Foundation
 import KeychainSDK
 import LunchMoneySDK
-import TransactionFeature
+import PersistenceService
+import SwiftData
+import SyncService
 
 @MainActor @Observable
 class TransactionsModel {
-    var state: State = .idle
+    var syncState: SyncState = .idle
 
-    private let fetchTransactionsUseCase: FetchTransactionsUseCase
-    private let pageSize: Int
+    private let syncCoordinator: SyncCoordinator
 
     init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol, pageSize: Int) {
-        self.pageSize = pageSize
-        self.fetchTransactionsUseCase = FetchTransactionsUseCase(
+        self.syncCoordinator = SyncCoordinator(
             lunchMoneyClient: lunchMoneyClient,
             keychainClient: keychainClient,
             pageSize: pageSize
         )
     }
 
-    func fetchTransactions(accountId: Int?, startDate: Date, endDate: Date) {
-        state = .loading
+    func sync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) {
+        syncState = .syncing
         Task {
             do {
-                let result = try await fetchTransactionsUseCase.run(options: .init(
+                let results = try await syncCoordinator.sync(
+                    context: context,
                     accountId: accountId,
                     startDate: startDate,
-                    endDate: endDate,
-                    existingTransactions: [],
-                    offset: 0
-                ))
-                state = .loaded(transactions: result.transactions, hasMore: result.hasMore)
+                    endDate: endDate
+                )
+                syncState = .synced(results.transactions)
             } catch {
-                state = .error(error.localizedDescription)
+                syncState = .error(error.localizedDescription)
             }
         }
     }
 
-    func loadMore(accountId: Int?, startDate: Date, endDate: Date) {
-        guard case .loaded(let transactions, let hasMore) = state, hasMore else { return }
-        state = .loadingMore(transactions: transactions)
-        Task {
-            do {
-                let result = try await fetchTransactionsUseCase.run(options: .init(
-                    accountId: accountId,
-                    startDate: startDate,
-                    endDate: endDate,
-                    existingTransactions: transactions,
-                    offset: transactions.count
-                ))
-                state = .loaded(transactions: result.transactions, hasMore: result.hasMore)
-            } catch {
-                state = .error(error.localizedDescription)
-            }
-        }
-    }
-
-    var transactions: [Transaction] {
-        switch state {
-        case .idle, .loading, .error: return []
-        case .loaded(let transactions, _): return transactions
-        case .loadingMore(let transactions): return transactions
-        }
-    }
-
-    var isLoading: Bool {
-        if case .loading = state { return true }
+    var isSyncing: Bool {
+        if case .syncing = syncState { return true }
         return false
-    }
-
-    var isLoadingMore: Bool {
-        if case .loadingMore = state { return true }
-        return false
-    }
-
-    var hasMore: Bool {
-        switch state {
-        case .loaded(_, let hasMore): return hasMore
-        case .loadingMore: return true
-        default: return false
-        }
     }
 
     var errorMessage: String? {
-        if case .error(let message) = state { return message }
+        if case .error(let message) = syncState { return message }
         return nil
     }
 
-    enum State {
+    enum SyncState {
         case idle
-        case loading
-        case loaded(transactions: [Transaction], hasMore: Bool)
-        case loadingMore(transactions: [Transaction])
+        case syncing
+        case synced(SyncResult)
         case error(String)
     }
 }
