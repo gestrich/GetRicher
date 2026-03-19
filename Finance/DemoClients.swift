@@ -16,24 +16,32 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
         endDate: String,
         limit: Int,
         offset: Int
-    ) async throws -> TransactionsResponse {
-        guard offset == 0 else {
-            return TransactionsResponse(transactions: [])
-        }
-
-        let transactions = Self.generateTransactions(accountId: accountId)
-        return TransactionsResponse(transactions: transactions)
+    ) async throws -> TransactionsResponseDTO {
+        let allTransactions = Self.getTransactions(accountId: accountId)
+        let page = Array(allTransactions.dropFirst(offset).prefix(limit))
+        return TransactionsResponseDTO(transactions: page)
     }
 
-    func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponse {
-        PlaidAccountsResponse(plaidAccounts: [
-            LunchMoneyPlaidAccount(id: 1, name: "Checking", displayName: "Chase Checking", type: "depository", subtype: "checking", mask: "4521", institutionName: "Chase", status: "active", balance: "4235.67", currency: "usd"),
-            LunchMoneyPlaidAccount(id: 2, name: "Credit Card", displayName: "Amex Gold", type: "credit", subtype: "credit card", mask: "1008", institutionName: "American Express", status: "active", balance: "1847.32", currency: "usd"),
-            LunchMoneyPlaidAccount(id: 3, name: "Savings", displayName: "Ally Savings", type: "depository", subtype: "savings", mask: "7890", institutionName: "Ally Bank", status: "active", balance: "12450.00", currency: "usd"),
+    func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponseDTO {
+        PlaidAccountsResponseDTO(plaidAccounts: [
+            PlaidAccountDTO(id: 1, name: "Checking", displayName: "Chase Checking", type: "depository", subtype: "checking", mask: "4521", institutionName: "Chase", status: "active", balance: "4235.67", currency: "usd"),
+            PlaidAccountDTO(id: 2, name: "Credit Card", displayName: "Amex Gold", type: "credit", subtype: "credit card", mask: "1008", institutionName: "American Express", status: "active", balance: "1847.32", currency: "usd"),
+            PlaidAccountDTO(id: 3, name: "Savings", displayName: "Ally Savings", type: "depository", subtype: "savings", mask: "7890", institutionName: "Ally Bank", status: "active", balance: "12450.00", currency: "usd"),
         ])
     }
 
-    private static func generateTransactions(accountId: Int?) -> [LunchMoneyTransaction] {
+    private static var cachedTransactions: [Int?: [TransactionDTO]] = [:]
+
+    private static func getTransactions(accountId: Int?) -> [TransactionDTO] {
+        if let cached = cachedTransactions[accountId] {
+            return cached
+        }
+        let transactions = generateTransactions(accountId: accountId)
+        cachedTransactions[accountId] = transactions
+        return transactions
+    }
+
+    private static func generateTransactions(accountId: Int?) -> [TransactionDTO] {
         let vendors: [(payee: String, category: String, amountRange: ClosedRange<Double>, accountId: Int)] = [
             ("Whole Foods Market", "Groceries", 45.00...185.00, 2),
             ("Trader Joe's", "Groceries", 30.00...95.00, 2),
@@ -59,7 +67,7 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
 
         let now = "2026-02-15"
         let nowTs = "2026-02-15T12:00:00.000Z"
-        var transactions: [LunchMoneyTransaction] = []
+        var transactions: [TransactionDTO] = []
         var id = 1000
 
         // Generate ~60 transactions over last 3 months
@@ -83,7 +91,7 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
                 let amount = Double.random(in: vendor.amountRange)
                 let amountStr = String(format: "%.2f", amount)
                 id += 1
-                transactions.append(LunchMoneyTransaction(
+                transactions.append(TransactionDTO(
                     id: id,
                     date: date,
                     payee: vendor.payee,
@@ -140,7 +148,7 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
         // Add a couple income transactions
         for date in ["2026-02-01", "2026-01-15", "2026-01-01", "2025-12-15"] {
             id += 1
-            transactions.append(LunchMoneyTransaction(
+            transactions.append(TransactionDTO(
                 id: id,
                 date: date,
                 payee: "Employer - Direct Deposit",

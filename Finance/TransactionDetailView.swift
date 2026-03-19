@@ -1,13 +1,14 @@
 import CoreService
+import PersistenceService
 import SwiftUI
 
 struct TransactionDetailView: View {
-    let transaction: CoreService.Transaction
+    let transaction: PersistenceService.Transaction
 
     var body: some View {
         List {
             Section("Basic Info") {
-                DetailRow(label: "ID", value: "\(transaction.id)")
+                DetailRow(label: "ID", value: "\(transaction.lunchMoneyId)")
                 DetailRow(label: "Date", value: transaction.date)
                 DetailRow(label: "Payee", value: transaction.payee)
                 DetailRow(label: "Display Name", value: transaction.displayName)
@@ -107,9 +108,9 @@ struct TransactionDetailView: View {
                 }
             }
 
-            if let tags = transaction.tags, !tags.isEmpty {
+            if !transaction.tags.isEmpty {
                 Section("Tags") {
-                    ForEach(tags, id: \.id) { tag in
+                    ForEach(transaction.tags) { tag in
                         if let name = tag.name {
                             Text(name)
                         }

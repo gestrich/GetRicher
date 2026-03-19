@@ -1,12 +1,15 @@
 import KeychainSDK
 import LunchMoneySDK
+import PersistenceService
+import SwiftData
 import SwiftUI
 
 @main
 struct FinanceApp: App {
     @State private var transactionsModel: TransactionsModel
-    @State private var accountsModel: AccountsModel
     @State private var settingsModel: SettingsModel
+
+    let modelContainer: ModelContainer
 
     init() {
         let isDemoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
@@ -22,25 +25,28 @@ struct FinanceApp: App {
             lunchMoneyClient = LunchMoneyClient()
         }
 
-        let pageSize = 200
+        let pageSizeOverride = UserDefaults.standard.integer(forKey: "pageSize")
+        let pageSize = pageSizeOverride > 0 ? pageSizeOverride : 200
         _transactionsModel = State(initialValue: TransactionsModel(
             lunchMoneyClient: lunchMoneyClient,
             keychainClient: keychainClient,
             pageSize: pageSize
         ))
-        _accountsModel = State(initialValue: AccountsModel(
-            lunchMoneyClient: lunchMoneyClient,
-            keychainClient: keychainClient
-        ))
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
+
+        do {
+            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self)
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(transactionsModel)
-                .environment(accountsModel)
                 .environment(settingsModel)
+                .modelContainer(modelContainer)
         }
     }
 }

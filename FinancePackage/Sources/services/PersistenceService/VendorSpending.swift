@@ -13,6 +13,7 @@ public struct VendorSpending: Identifiable, Sendable {
         self.transactionCount = transactionCount
     }
 
+    @MainActor
     public static func aggregate(from transactions: [Transaction]) -> [VendorSpending] {
         var vendorTotals: [String: (total: Double, count: Int)] = [:]
 
