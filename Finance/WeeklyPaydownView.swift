@@ -18,8 +18,8 @@ struct WeeklyPaydownView: View {
 
     var body: some View {
         @Bindable var paydownModel = paydownModel
-        let periodTx = paydownModel.periodTransactions(selectedAccountId: selectedAccountIdOrNil, from: transactions)
-        let selectedAccount = paydownModel.selectedAccount(selectedAccountId: selectedAccountIdOrNil, from: accounts)
+        let periodTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: transactions)
+        let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: accounts)
 
         NavigationStack {
             Group {
@@ -107,7 +107,7 @@ struct WeeklyPaydownView: View {
     }
 
     private var calculationBreakdown: some View {
-        let calc = paydownModel.calculation(selectedAccountId: selectedAccountIdOrNil, accounts: accounts, transactions: transactions)
+        let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: accounts, transactions: transactions)
         return VStack(spacing: 0) {
             Text("Paydown Calculation")
                 .font(.headline)
