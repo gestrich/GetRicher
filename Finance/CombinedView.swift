@@ -9,7 +9,7 @@ struct CombinedView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
-    @State private var selectedAccountId: Int? = nil
+    @AppStorage("dashboardSelectedAccountId") private var selectedAccountId: Int = -1
     @State private var selectedDateFilter: DateFilter = .all
     @State private var showSettings = false
 
@@ -22,14 +22,14 @@ struct CombinedView: View {
 
         return transactions.filter { tx in
             let dateMatch = tx.date >= start && tx.date <= end
-            let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
+            let accountMatch = selectedAccountId == -1 || tx.plaidAccountId == selectedAccountId
             return dateMatch && accountMatch
         }
     }
 
     private var selectedAccountBalance: String? {
-        guard let accountId = selectedAccountId,
-              let account = accounts.first(where: { $0.lunchMoneyId == accountId }) else {
+        guard selectedAccountId != -1,
+              let account = accounts.first(where: { $0.lunchMoneyId == selectedAccountId }) else {
             return nil
         }
         return CurrencyFormatter.format(amount: account.balance, currency: account.currency)
@@ -51,7 +51,7 @@ struct CombinedView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            syncData()
+                            syncAllAccounts()
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -70,9 +70,9 @@ struct CombinedView: View {
 
                             VStack(spacing: 12) {
                                 Picker("Account", selection: $selectedAccountId) {
-                                    Text("All Accounts").tag(nil as Int?)
+                                    Text("All Accounts").tag(-1)
                                     ForEach(accounts) { account in
-                                        Text(account.displayName).tag(account.lunchMoneyId as Int?)
+                                        Text(account.displayName).tag(account.lunchMoneyId)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -181,25 +181,26 @@ struct CombinedView: View {
                 SettingsView()
             }
             .task(id: transactionsModel.id) {
-                syncData()
+                syncAllAccounts()
             }
             .refreshable {
                 await syncDataAndWait()
             }
-            .onChange(of: selectedAccountId) { _, _ in
-                syncData()
-            }
             .onChange(of: selectedDateFilter) { _, _ in
-                syncData()
+                syncAllAccounts()
             }
         }
     }
 
-    private func syncData() {
+    private var selectedAccountIdOrNil: Int? {
+        selectedAccountId == -1 ? nil : selectedAccountId
+    }
+
+    private func syncAllAccounts() {
         let dateRange = selectedDateFilter.dateRange
         transactionsModel.sync(
             context: modelContext,
-            accountId: selectedAccountId,
+            accountId: nil,
             startDate: dateRange.start,
             endDate: dateRange.end
         )
@@ -209,7 +210,7 @@ struct CombinedView: View {
         let dateRange = selectedDateFilter.dateRange
         await transactionsModel.syncAndWait(
             context: modelContext,
-            accountId: selectedAccountId,
+            accountId: selectedAccountIdOrNil,
             startDate: dateRange.start,
             endDate: dateRange.end
         )

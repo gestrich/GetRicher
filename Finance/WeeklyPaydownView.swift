@@ -10,11 +10,16 @@ struct WeeklyPaydownView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
+    @AppStorage("paydownSelectedAccountId") private var selectedAccountId: Int = -1
+
+    private var selectedAccountIdOrNil: Int? {
+        selectedAccountId == -1 ? nil : selectedAccountId
+    }
 
     var body: some View {
         @Bindable var paydownModel = paydownModel
-        let periodTx = paydownModel.periodTransactions(from: transactions)
-        let selectedAccount = paydownModel.selectedAccount(from: accounts)
+        let periodTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: transactions)
+        let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: accounts)
 
         NavigationStack {
             Group {
@@ -71,10 +76,10 @@ struct WeeklyPaydownView: View {
     private var accountPicker: some View {
         @Bindable var paydownModel = paydownModel
         return VStack(spacing: 12) {
-            Picker("Account", selection: $paydownModel.selectedAccountId) {
-                Text("Select Account").tag(nil as Int?)
+            Picker("Account", selection: $selectedAccountId) {
+                Text("Select Account").tag(-1)
                 ForEach(accounts) { account in
-                    Text(account.displayName).tag(account.lunchMoneyId as Int?)
+                    Text(account.displayName).tag(account.lunchMoneyId)
                 }
             }
             .pickerStyle(.menu)
@@ -102,7 +107,7 @@ struct WeeklyPaydownView: View {
     }
 
     private var calculationBreakdown: some View {
-        let calc = paydownModel.calculation(accounts: accounts, transactions: transactions)
+        let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: accounts, transactions: transactions)
         return VStack(spacing: 0) {
             Text("Paydown Calculation")
                 .font(.headline)

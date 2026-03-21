@@ -78,11 +78,10 @@ struct PaydownDateRange {
 @MainActor @Observable
 class WeeklyPaydownModel {
 
-    var selectedAccountId: Int? = nil
     var pivotDay: PivotDay = .saturday
 
-    func selectedAccount(from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
-        guard let accountId = selectedAccountId else { return nil }
+    func account(id accountId: Int?, from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
+        guard let accountId = accountId else { return nil }
         return accounts.first { $0.lunchMoneyId == accountId }
     }
 
@@ -90,19 +89,19 @@ class WeeklyPaydownModel {
         PaydownDateRange.compute(pivotDay: pivotDay)
     }
 
-    func periodTransactions(from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
+    func periodTransactions(accountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
         let range = dateRange
         return transactions.filter { tx in
-            let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
+            let accountMatch = accountId == nil || tx.plaidAccountId == accountId
             let dateMatch = tx.date > range.start && tx.date <= range.end
             return accountMatch && dateMatch && !tx.isIncome
         }
     }
 
-    func postPeriodClearedTransactions(from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
+    func postPeriodClearedTransactions(accountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
         let range = dateRange
         return transactions.filter { tx in
-            let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
+            let accountMatch = accountId == nil || tx.plaidAccountId == accountId
             let isAfterPeriod = tx.date > range.end
             let isCleared = tx.status.lowercased() == "cleared"
             return accountMatch && isAfterPeriod && isCleared && !tx.isIncome
@@ -110,13 +109,14 @@ class WeeklyPaydownModel {
     }
 
     func calculation(
+        accountId: Int?,
         accounts: [PersistenceService.PlaidAccount],
         transactions: [PersistenceService.Transaction]
     ) -> PaydownCalculation {
         PaydownCalculation.compute(
-            account: selectedAccount(from: accounts),
-            periodTransactions: periodTransactions(from: transactions),
-            postPeriodClearedTransactions: postPeriodClearedTransactions(from: transactions)
+            account: account(id: accountId, from: accounts),
+            periodTransactions: periodTransactions(accountId: accountId, from: transactions),
+            postPeriodClearedTransactions: postPeriodClearedTransactions(accountId: accountId, from: transactions)
         )
     }
 }
