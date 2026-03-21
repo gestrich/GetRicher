@@ -78,8 +78,22 @@ struct PaydownDateRange {
 @MainActor @Observable
 class WeeklyPaydownModel {
 
-    var selectedAccountId: Int? = nil
+    var selectedAccountId: Int? {
+        didSet {
+            let stored = selectedAccountId ?? -1
+            UserDefaults.standard.set(stored, forKey: "paydownSelectedAccountId")
+        }
+    }
     var pivotDay: PivotDay = .saturday
+
+    init() {
+        let stored = UserDefaults.standard.object(forKey: "paydownSelectedAccountId") as? Int
+        if let stored {
+            self.selectedAccountId = stored == -1 ? nil : stored
+        } else {
+            self.selectedAccountId = nil
+        }
+    }
 
     func selectedAccount(from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
         guard let accountId = selectedAccountId else { return nil }
