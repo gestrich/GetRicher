@@ -9,16 +9,24 @@ struct FinanceApp: App {
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
+    @State private var lastModeChangeCount: Int = 0
 
     let modelContainer: ModelContainer
 
     init() {
-        let isDemoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
+        let storedMode = UserDefaults.standard.object(forKey: "appMode") as? Int
+        let appMode: AppMode
+        if let storedMode, let mode = AppMode(rawValue: storedMode) {
+            appMode = mode
+        } else {
+            let oldDemoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true
+            appMode = oldDemoMode ? .demo : .token
+        }
 
         let keychainClient: any KeychainClientProtocol
         let lunchMoneyClient: any LunchMoneyClientProtocol
 
-        if isDemoMode {
+        if appMode == .demo {
             keychainClient = DemoKeychainClient()
             lunchMoneyClient = DemoLunchMoneyClient()
         } else {
@@ -49,6 +57,45 @@ struct FinanceApp: App {
                 .environment(settingsModel)
                 .environment(weeklyPaydownModel)
                 .modelContainer(modelContainer)
+                .onChange(of: settingsModel.modeChangeCount) { _, newCount in
+                    guard newCount != lastModeChangeCount else { return }
+                    lastModeChangeCount = newCount
+                    handleModeChange()
+                }
         }
+    }
+
+    @MainActor
+    private func handleModeChange() {
+        // Clear all SwiftData
+        let context = modelContainer.mainContext
+        do {
+            try context.delete(model: PersistenceService.Transaction.self)
+            try context.delete(model: PersistenceService.PlaidAccount.self)
+            try context.delete(model: PersistenceService.Tag.self)
+            try context.save()
+        } catch {
+            print("Failed to clear data: \(error)")
+        }
+
+        // Recreate clients based on new mode
+        let keychainClient: any KeychainClientProtocol
+        let lunchMoneyClient: any LunchMoneyClientProtocol
+
+        if settingsModel.isDemoMode {
+            keychainClient = DemoKeychainClient()
+            lunchMoneyClient = DemoLunchMoneyClient()
+        } else {
+            keychainClient = KeychainClient()
+            lunchMoneyClient = LunchMoneyClient()
+        }
+
+        let pageSizeOverride = UserDefaults.standard.integer(forKey: "pageSize")
+        let pageSize = pageSizeOverride > 0 ? pageSizeOverride : 200
+        transactionsModel = TransactionsModel(
+            lunchMoneyClient: lunchMoneyClient,
+            keychainClient: keychainClient,
+            pageSize: pageSize
+        )
     }
 }
