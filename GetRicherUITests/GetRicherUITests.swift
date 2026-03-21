@@ -54,6 +54,41 @@ final class GetRicherUITests: XCTestCase {
     }
 
     @MainActor
+    func testWeeklyPaydownScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Navigate to Weekly Paydown tab
+        let paydownTab = app.tabBars.buttons["Weekly Paydown"]
+        XCTAssertTrue(paydownTab.waitForExistence(timeout: 10), "Weekly Paydown tab should exist")
+        paydownTab.tap()
+
+        // Wait for the view to load
+        let title = app.staticTexts["Weekly Paydown"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "Weekly Paydown title should appear")
+
+        // Select the Amex Gold account (credit card)
+        let accountPicker = app.buttons["Account, Select Account"]
+        if accountPicker.waitForExistence(timeout: 5) {
+            accountPicker.tap()
+            let amexOption = app.buttons["Amex Gold"]
+            if amexOption.waitForExistence(timeout: 5) {
+                amexOption.tap()
+            }
+        }
+
+        // Wait for calculation to appear
+        sleep(2)
+
+        // Take screenshot
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "WeeklyPaydown"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testPieChartScreenshot() throws {
         let app = XCUIApplication()
         app.launch()

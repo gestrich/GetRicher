@@ -65,22 +65,24 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
             ("Thai Basil", "Restaurants", 22.00...48.00, 2),
         ]
 
-        let now = "2026-02-15"
-        let nowTs = "2026-02-15T12:00:00.000Z"
+        let nowTs = "2026-03-20T12:00:00.000Z"
         var transactions: [TransactionDTO] = []
         var id = 1000
 
-        // Generate ~60 transactions over last 3 months
+        // Generate transactions over last 3 months including recent dates
         let dates = [
-            "2026-02-14", "2026-02-13", "2026-02-12", "2026-02-10", "2026-02-08",
+            "2026-03-20", "2026-03-19", "2026-03-18", "2026-03-17", "2026-03-16",
+            "2026-03-15", "2026-03-14", "2026-03-13", "2026-03-12", "2026-03-10",
+            "2026-03-08", "2026-03-06", "2026-03-04", "2026-03-02", "2026-03-01",
+            "2026-02-28", "2026-02-25", "2026-02-22", "2026-02-20",
+            "2026-02-18", "2026-02-15", "2026-02-12", "2026-02-10", "2026-02-08",
             "2026-02-06", "2026-02-04", "2026-02-02", "2026-02-01",
             "2026-01-30", "2026-01-28", "2026-01-25", "2026-01-22", "2026-01-20",
-            "2026-01-18", "2026-01-15", "2026-01-12", "2026-01-10", "2026-01-08",
-            "2026-01-05", "2026-01-03", "2026-01-01",
-            "2025-12-30", "2025-12-28", "2025-12-25", "2025-12-22", "2025-12-20",
-            "2025-12-18", "2025-12-15", "2025-12-12", "2025-12-10", "2025-12-08",
-            "2025-12-05", "2025-12-03", "2025-12-01",
+            "2026-01-15", "2026-01-10", "2026-01-05", "2026-01-01",
         ]
+
+        // Recent dates that should be pending (last 2 days)
+        let pendingDates: Set<String> = ["2026-03-20", "2026-03-19"]
 
         for date in dates {
             // 1-3 transactions per date
@@ -90,6 +92,7 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
                 if let accountId, vendor.accountId != accountId { continue }
                 let amount = Double.random(in: vendor.amountRange)
                 let amountStr = String(format: "%.2f", amount)
+                let isPending = pendingDates.contains(date)
                 id += 1
                 transactions.append(TransactionDTO(
                     id: id,
@@ -104,9 +107,9 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
                     categoryName: vendor.category,
                     categoryGroupId: nil,
                     categoryGroupName: nil,
-                    status: "cleared",
+                    status: isPending ? "pending" : "cleared",
                     isIncome: false,
-                    isPending: false,
+                    isPending: isPending,
                     excludeFromBudget: false,
                     excludeFromTotals: false,
                     createdAt: nowTs,
@@ -146,7 +149,7 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
         }
 
         // Add a couple income transactions
-        for date in ["2026-02-01", "2026-01-15", "2026-01-01", "2025-12-15"] {
+        for date in ["2026-03-15", "2026-03-01", "2026-02-15", "2026-02-01"] {
             id += 1
             transactions.append(TransactionDTO(
                 id: id,
