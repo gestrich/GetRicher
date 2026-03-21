@@ -11,6 +11,7 @@ App-wide transaction categories. Not account-specific — shared across all acco
 public final class Category {
     public var id: UUID
     public var name: String              // e.g. "Groceries", "Shopping", "Dining"
+    public var emoji: String?            // e.g. "🛒", "🍽️", "🛍️"
     public var colorHex: String?         // Optional color for UI
     public var createdAt: Date
 }
