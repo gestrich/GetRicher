@@ -44,7 +44,7 @@ struct FinanceApp: App {
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
 
         do {
-            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self)
+            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferRule.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

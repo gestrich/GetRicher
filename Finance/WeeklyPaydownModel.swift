@@ -73,6 +73,15 @@ struct PaydownDateRange {
     }
 }
 
+struct TransferBreakdown: Identifiable {
+    let id = UUID()
+    let sourceAccountId: Int?
+    let sourceAccountName: String
+    let ruleName: String
+    let amount: Double
+    let transactionCount: Int
+}
+
 // MARK: - Model
 
 @MainActor @Observable
@@ -118,5 +127,62 @@ class WeeklyPaydownModel {
             periodTransactions: periodTransactions(accountId: accountId, from: transactions),
             postPeriodClearedTransactions: postPeriodClearedTransactions(accountId: accountId, from: transactions)
         )
+    }
+
+    func transferBreakdown(
+        accountId: Int,
+        periodTransactions: [PersistenceService.Transaction],
+        vendors: [PersistenceService.Vendor],
+        rules: [PersistenceService.TransferRule],
+        accounts: [PersistenceService.PlaidAccount]
+    ) -> [TransferBreakdown] {
+        let accountRules = rules
+            .filter { $0.targetAccountId == accountId }
+            .sorted { $0.priority > $1.priority }
+
+        guard !accountRules.isEmpty else { return [] }
+
+        let accountVendors = vendors.filter { $0.accountId == accountId || $0.accountId == nil }
+
+        // Group transactions by matched rule
+        var ruleTransactions: [UUID: [PersistenceService.Transaction]] = [:]
+        for rule in accountRules {
+            ruleTransactions[rule.id] = []
+        }
+
+        for transaction in periodTransactions {
+            var matched = false
+            for rule in accountRules {
+                guard let vendor = rule.vendor else { continue }
+                if transaction.payee.localizedCaseInsensitiveContains(vendor.filterText) {
+                    ruleTransactions[rule.id, default: []].append(transaction)
+                    matched = true
+                    break
+                }
+            }
+            if !matched {
+                // Find default rule (vendor == nil)
+                if let defaultRule = accountRules.first(where: { $0.vendor == nil }) {
+                    ruleTransactions[defaultRule.id, default: []].append(transaction)
+                }
+            }
+        }
+
+        return accountRules.compactMap { rule in
+            let txs = ruleTransactions[rule.id] ?? []
+            guard !txs.isEmpty else { return nil }
+            let total = txs.reduce(0.0) { $0 + abs($1.toBase) }
+            let sourceName = rule.sourceAccountId.flatMap { srcId in
+                accounts.first { $0.lunchMoneyId == srcId }?.displayName
+            } ?? "Unspecified"
+
+            return TransferBreakdown(
+                sourceAccountId: rule.sourceAccountId,
+                sourceAccountName: sourceName,
+                ruleName: rule.name,
+                amount: total,
+                transactionCount: txs.count
+            )
+        }
     }
 }

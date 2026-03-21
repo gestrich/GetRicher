@@ -66,6 +66,15 @@ struct SettingsView: View {
                         Text("Remove the API token from keychain")
                     }
                 }
+
+                Section("Management") {
+                    NavigationLink("Categories") {
+                        CategoryListView()
+                    }
+                    NavigationLink("Vendors") {
+                        VendorListView(accountId: nil)
+                    }
+                }
             }
             .navigationTitle("Settings")
             .toolbar {
