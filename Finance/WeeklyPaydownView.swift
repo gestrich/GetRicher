@@ -47,7 +47,7 @@ struct WeeklyPaydownView: View {
                 }
             }
             .navigationTitle("Weekly Paydown")
-            .task {
+            .task(id: transactionsModel.id) {
                 let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
                 transactionsModel.sync(
                     context: modelContext,
@@ -58,7 +58,7 @@ struct WeeklyPaydownView: View {
             }
             .refreshable {
                 let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
-                transactionsModel.sync(
+                await transactionsModel.syncAndWait(
                     context: modelContext,
                     accountId: nil,
                     startDate: twoYearsAgo,

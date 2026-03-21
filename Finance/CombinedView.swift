@@ -180,11 +180,11 @@ struct CombinedView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
-            .task {
+            .task(id: transactionsModel.id) {
                 syncData()
             }
             .refreshable {
-                syncData()
+                await syncDataAndWait()
             }
             .onChange(of: selectedAccountId) { _, _ in
                 syncData()
@@ -198,6 +198,16 @@ struct CombinedView: View {
     private func syncData() {
         let dateRange = selectedDateFilter.dateRange
         transactionsModel.sync(
+            context: modelContext,
+            accountId: selectedAccountId,
+            startDate: dateRange.start,
+            endDate: dateRange.end
+        )
+    }
+
+    private func syncDataAndWait() async {
+        let dateRange = selectedDateFilter.dateRange
+        await transactionsModel.syncAndWait(
             context: modelContext,
             accountId: selectedAccountId,
             startDate: dateRange.start,

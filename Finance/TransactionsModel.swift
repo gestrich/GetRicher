@@ -6,7 +6,8 @@ import SwiftData
 import SyncService
 
 @MainActor @Observable
-class TransactionsModel {
+class TransactionsModel: Identifiable {
+    let id = UUID()
     var syncState: SyncState = .idle
 
     private let syncCoordinator: SyncCoordinator
@@ -22,17 +23,26 @@ class TransactionsModel {
     func sync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) {
         syncState = .syncing
         Task {
-            do {
-                let results = try await syncCoordinator.sync(
-                    context: context,
-                    accountId: accountId,
-                    startDate: startDate,
-                    endDate: endDate
-                )
-                syncState = .synced(results.transactions)
-            } catch {
-                syncState = .error(error.localizedDescription)
-            }
+            await performSync(context: context, accountId: accountId, startDate: startDate, endDate: endDate)
+        }
+    }
+
+    func syncAndWait(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) async {
+        syncState = .syncing
+        await performSync(context: context, accountId: accountId, startDate: startDate, endDate: endDate)
+    }
+
+    private func performSync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) async {
+        do {
+            let results = try await syncCoordinator.sync(
+                context: context,
+                accountId: accountId,
+                startDate: startDate,
+                endDate: endDate
+            )
+            syncState = .synced(results.transactions)
+        } catch {
+            syncState = .error(error.localizedDescription)
         }
     }
 
