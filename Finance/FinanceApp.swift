@@ -8,6 +8,7 @@ import SwiftUI
 struct FinanceApp: App {
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
+    @State private var weeklyPaydownModel = WeeklyPaydownModel()
 
     let modelContainer: ModelContainer
 
@@ -46,6 +47,7 @@ struct FinanceApp: App {
             ContentView()
                 .environment(transactionsModel)
                 .environment(settingsModel)
+                .environment(weeklyPaydownModel)
                 .modelContainer(modelContainer)
         }
     }
