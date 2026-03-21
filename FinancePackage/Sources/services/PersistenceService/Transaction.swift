@@ -54,6 +54,7 @@ public final class Transaction {
     public var accountDisplayName: String?
     public var externalId: String?
     @Relationship(deleteRule: .cascade) public var tags: [Tag]
+    public var localCategory: Category?
 
     public init(
         lunchMoneyId: Int,

@@ -10,6 +10,9 @@ struct WeeklyPaydownView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
+    @Query(sort: \PersistenceService.Vendor.name) var vendors: [PersistenceService.Vendor]
+    @Query(sort: \PersistenceService.TransferRule.priority) var transferRules: [PersistenceService.TransferRule]
+    @State private var vendorCreationTransaction: PersistenceService.Transaction?
     @AppStorage("paydownSelectedAccountId") private var selectedAccountId: Int = -1
 
     private var selectedAccountIdOrNil: Int? {
@@ -38,6 +41,7 @@ struct WeeklyPaydownView: View {
                             periodHeader
                             if selectedAccount != nil {
                                 calculationBreakdown
+                                transferBreakdownSection(periodTransactions: periodTx)
                                 vendorChart(periodTransactions: periodTx)
                                 transactionList(periodTransactions: periodTx)
                             } else {
@@ -52,6 +56,17 @@ struct WeeklyPaydownView: View {
                 }
             }
             .navigationTitle("Weekly Paydown")
+            .toolbar {
+                if selectedAccount != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        NavigationLink {
+                            TransferRulesListView(targetAccountId: selectedAccountId)
+                        } label: {
+                            Image(systemName: "arrow.left.arrow.right")
+                        }
+                    }
+                }
+            }
             .task(id: transactionsModel.id) {
                 let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
                 transactionsModel.sync(
@@ -104,6 +119,59 @@ struct WeeklyPaydownView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
+    }
+
+    private func transferBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
+        let accountRules = transferRules.filter { $0.targetAccountId == selectedAccountId }
+        let breakdown = paydownModel.transferBreakdown(
+            accountId: selectedAccountId,
+            periodTransactions: periodTransactions,
+            vendors: vendors,
+            rules: transferRules,
+            accounts: accounts
+        )
+
+        return Group {
+            if !accountRules.isEmpty && !breakdown.isEmpty {
+                VStack(spacing: 0) {
+                    Text("Transfer Breakdown")
+                        .font(.headline)
+                        .padding(.bottom, 12)
+
+                    ForEach(breakdown) { item in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.sourceAccountName)
+                                    .font(.body)
+                                Text("\(item.ruleName) — \(item.transactionCount) transaction\(item.transactionCount == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(CurrencyFormatter.format(amount: item.amount, currency: "USD"))
+                                .font(.body.monospacedDigit())
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    HStack {
+                        Text("Total")
+                            .font(.title3.bold())
+                        Spacer()
+                        Text(CurrencyFormatter.format(amount: breakdown.reduce(0) { $0 + $1.amount }, currency: "USD"))
+                            .font(.title3.bold())
+                            .foregroundStyle(.green)
+                    }
+                }
+                .padding()
+                .background(Color(.systemBackground))
+                .cornerRadius(12)
+                .padding(.horizontal)
+            }
+        }
     }
 
     private var calculationBreakdown: some View {

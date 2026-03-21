@@ -7,6 +7,7 @@ struct TransactionsListView: View {
     @Environment(TransactionsModel.self) var transactionsModel
     @Environment(\.modelContext) var modelContext
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
+    @State private var vendorCreationTransaction: PersistenceService.Transaction?
 
     var body: some View {
         NavigationStack {
@@ -49,6 +50,21 @@ struct TransactionsListView: View {
                             } label: {
                                 TransactionRow(transaction: transaction)
                             }
+                            .contextMenu {
+                                TransactionContextMenu(
+                                    transaction: transaction,
+                                    onCreateVendor: { vendorCreationTransaction = transaction }
+                                )
+                            }
+                        }
+                    }
+                    .sheet(item: $vendorCreationTransaction) { transaction in
+                        NavigationStack {
+                            VendorEditView(
+                                prefilledName: transaction.payee,
+                                prefilledFilterText: transaction.payee,
+                                prefilledAccountId: transaction.plaidAccountId
+                            )
                         }
                     }
                 }
