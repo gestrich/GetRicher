@@ -51,7 +51,7 @@ struct CombinedView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            syncData()
+                            syncAllAccounts()
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -181,16 +181,13 @@ struct CombinedView: View {
                 SettingsView()
             }
             .task(id: transactionsModel.id) {
-                syncData()
+                syncAllAccounts()
             }
             .refreshable {
                 await syncDataAndWait()
             }
-            .onChange(of: selectedAccountId) { _, _ in
-                syncData()
-            }
             .onChange(of: selectedDateFilter) { _, _ in
-                syncData()
+                syncAllAccounts()
             }
         }
     }
@@ -199,11 +196,11 @@ struct CombinedView: View {
         selectedAccountId == -1 ? nil : selectedAccountId
     }
 
-    private func syncData() {
+    private func syncAllAccounts() {
         let dateRange = selectedDateFilter.dateRange
         transactionsModel.sync(
             context: modelContext,
-            accountId: selectedAccountIdOrNil,
+            accountId: nil,
             startDate: dateRange.start,
             endDate: dateRange.end
         )

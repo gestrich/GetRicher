@@ -78,24 +78,9 @@ struct PaydownDateRange {
 @MainActor @Observable
 class WeeklyPaydownModel {
 
-    var selectedAccountId: Int? {
-        didSet {
-            let stored = selectedAccountId ?? -1
-            UserDefaults.standard.set(stored, forKey: "paydownSelectedAccountId")
-        }
-    }
     var pivotDay: PivotDay = .saturday
 
-    init() {
-        let stored = UserDefaults.standard.object(forKey: "paydownSelectedAccountId") as? Int
-        if let stored {
-            self.selectedAccountId = stored == -1 ? nil : stored
-        } else {
-            self.selectedAccountId = nil
-        }
-    }
-
-    func selectedAccount(from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
+    func selectedAccount(selectedAccountId: Int?, from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
         guard let accountId = selectedAccountId else { return nil }
         return accounts.first { $0.lunchMoneyId == accountId }
     }
@@ -104,7 +89,7 @@ class WeeklyPaydownModel {
         PaydownDateRange.compute(pivotDay: pivotDay)
     }
 
-    func periodTransactions(from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
+    func periodTransactions(selectedAccountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
         let range = dateRange
         return transactions.filter { tx in
             let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
@@ -113,7 +98,7 @@ class WeeklyPaydownModel {
         }
     }
 
-    func postPeriodClearedTransactions(from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
+    func postPeriodClearedTransactions(selectedAccountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {
         let range = dateRange
         return transactions.filter { tx in
             let accountMatch = selectedAccountId == nil || tx.plaidAccountId == selectedAccountId
@@ -124,13 +109,14 @@ class WeeklyPaydownModel {
     }
 
     func calculation(
+        selectedAccountId: Int?,
         accounts: [PersistenceService.PlaidAccount],
         transactions: [PersistenceService.Transaction]
     ) -> PaydownCalculation {
         PaydownCalculation.compute(
-            account: selectedAccount(from: accounts),
-            periodTransactions: periodTransactions(from: transactions),
-            postPeriodClearedTransactions: postPeriodClearedTransactions(from: transactions)
+            account: selectedAccount(selectedAccountId: selectedAccountId, from: accounts),
+            periodTransactions: periodTransactions(selectedAccountId: selectedAccountId, from: transactions),
+            postPeriodClearedTransactions: postPeriodClearedTransactions(selectedAccountId: selectedAccountId, from: transactions)
         )
     }
 }
