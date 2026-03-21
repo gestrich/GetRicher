@@ -40,8 +40,8 @@ struct WeeklyPaydownView: View {
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
-                                calculationBreakdown
                                 transferBreakdownSection(periodTransactions: periodTx)
+                                calculationBreakdownSection(periodTransactions: periodTx)
                                 vendorChart(periodTransactions: periodTx)
                                 transactionList(periodTransactions: periodTx)
                             } else {
@@ -174,8 +174,19 @@ struct WeeklyPaydownView: View {
         }
     }
 
-    private var calculationBreakdown: some View {
+    private func calculationBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
         let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: accounts, transactions: transactions)
+        let breakdown = paydownModel.transferBreakdown(
+            accountId: selectedAccountId,
+            periodTransactions: periodTransactions,
+            vendors: vendors,
+            rules: transferRules,
+            accounts: accounts
+        )
+        let transferTotal = breakdown.reduce(0.0) { $0 + $1.amount }
+        let hasTransfers = !breakdown.isEmpty
+        let finalAmount = calc.adjustedSpending - transferTotal
+
         return VStack(spacing: 0) {
             Text("Paydown Calculation")
                 .font(.headline)
@@ -205,16 +216,37 @@ struct WeeklyPaydownView: View {
                 sign: "−"
             )
 
-            Divider()
-                .padding(.vertical, 8)
+            if hasTransfers {
+                CalculationRow(
+                    label: "Covered by Transfers",
+                    amount: transferTotal,
+                    explanation: "Amount covered by transfers from other accounts. These are subtracted since the linked accounts will handle the payment.",
+                    isTotal: false,
+                    sign: "−"
+                )
 
-            CalculationRow(
-                label: "Amount to Pay",
-                amount: calc.adjustedSpending,
-                explanation: "This is how much to pay your credit card vendor for the 7-day period.",
-                isTotal: true,
-                sign: "="
-            )
+                Divider()
+                    .padding(.vertical, 8)
+
+                CalculationRow(
+                    label: "Amount to Pay",
+                    amount: finalAmount,
+                    explanation: "The remaining amount to pay after transfers from other accounts cover their portion.",
+                    isTotal: true,
+                    sign: "="
+                )
+            } else {
+                Divider()
+                    .padding(.vertical, 8)
+
+                CalculationRow(
+                    label: "Amount to Pay",
+                    amount: calc.adjustedSpending,
+                    explanation: "This is how much to pay your credit card vendor for the 7-day period.",
+                    isTotal: true,
+                    sign: "="
+                )
+            }
         }
         .padding()
         .background(Color(.systemBackground))

@@ -89,6 +89,133 @@ final class GetRicherUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Wait for main view to load
+        let financeTitle = app.staticTexts["Finance"]
+        XCTAssertTrue(financeTitle.waitForExistence(timeout: 10), "Finance title should appear")
+
+        // Tap settings gear
+        let settingsButton = app.buttons["gear"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Settings button should exist")
+        settingsButton.tap()
+
+        // Wait for settings to appear
+        let settingsTitle = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsTitle.waitForExistence(timeout: 5), "Settings title should appear")
+
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Settings"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testCategoryListScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let financeTitle = app.staticTexts["Finance"]
+        XCTAssertTrue(financeTitle.waitForExistence(timeout: 10))
+
+        // Navigate: Settings → Categories
+        let settingsButton = app.buttons["gear"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let categoriesLink = app.buttons["Categories"]
+        XCTAssertTrue(categoriesLink.waitForExistence(timeout: 5), "Categories link should exist in Settings")
+        categoriesLink.tap()
+
+        sleep(1)
+
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "CategoryList"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testVendorListScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let financeTitle = app.staticTexts["Finance"]
+        XCTAssertTrue(financeTitle.waitForExistence(timeout: 10))
+
+        // Navigate: Settings → Vendors
+        let settingsButton = app.buttons["gear"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let vendorsLink = app.buttons["Vendors"]
+        XCTAssertTrue(vendorsLink.waitForExistence(timeout: 5), "Vendors link should exist in Settings")
+        vendorsLink.tap()
+
+        sleep(1)
+
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "VendorList"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testTransferRulesScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Navigate to Weekly Paydown tab
+        let paydownTab = app.tabBars.buttons["Weekly Paydown"]
+        XCTAssertTrue(paydownTab.waitForExistence(timeout: 10))
+        paydownTab.tap()
+
+        let title = app.staticTexts["Weekly Paydown"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+
+        // Select Amex Gold account
+        let accountPicker = app.buttons["Account, Select Account"]
+        if accountPicker.waitForExistence(timeout: 5) {
+            accountPicker.tap()
+            let amexOption = app.buttons["Amex Gold"]
+            if amexOption.waitForExistence(timeout: 5) {
+                amexOption.tap()
+            }
+        }
+
+        sleep(1)
+
+        // Tap the transfer rules button (arrow icon in toolbar)
+        let transferRulesButton = app.buttons["arrow.left.arrow.right"]
+        if transferRulesButton.waitForExistence(timeout: 5) {
+            transferRulesButton.tap()
+            sleep(1)
+
+            let screenshot = app.screenshot()
+            let attachment = XCTAttachment(screenshot: screenshot)
+            attachment.name = "TransferRulesList"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        } else {
+            // Take screenshot of Weekly Paydown with transfer breakdown visible
+            // Scroll down to find the transfer breakdown section
+            app.swipeUp()
+            sleep(1)
+
+            let screenshot = app.screenshot()
+            let attachment = XCTAttachment(screenshot: screenshot)
+            attachment.name = "WeeklyPaydownTransferBreakdown"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    @MainActor
     func testPieChartScreenshot() throws {
         let app = XCUIApplication()
         app.launch()

@@ -57,12 +57,78 @@ struct FinanceApp: App {
                 .environment(settingsModel)
                 .environment(weeklyPaydownModel)
                 .modelContainer(modelContainer)
+                .task {
+                    if settingsModel.isDemoMode {
+                        seedDemoVendorsAndRules()
+                    }
+                }
                 .onChange(of: settingsModel.modeChangeCount) { _, newCount in
                     guard newCount != lastModeChangeCount else { return }
                     lastModeChangeCount = newCount
                     handleModeChange()
                 }
         }
+    }
+
+    @MainActor
+    private func seedDemoVendorsAndRules() {
+        let context = modelContainer.mainContext
+
+        // Check if already seeded
+        let existingVendors = (try? context.fetch(FetchDescriptor<PersistenceService.Vendor>())) ?? []
+        guard existingVendors.isEmpty else { return }
+
+        // Create categories
+        let groceries = PersistenceService.Category(name: "Groceries", emoji: "🛒", colorHex: "#34C759")
+        let dining = PersistenceService.Category(name: "Dining", emoji: "🍽️", colorHex: "#FF9500")
+        let subscriptions = PersistenceService.Category(name: "Subscriptions", emoji: "🔄", colorHex: "#5856D6")
+        let shopping = PersistenceService.Category(name: "Shopping", emoji: "🛍️", colorHex: "#FF2D55")
+
+        for cat in [groceries, dining, subscriptions, shopping] {
+            context.insert(cat)
+        }
+
+        // Create vendors for Amex Gold (accountId: 2)
+        let wholeFoods = PersistenceService.Vendor(name: "Whole Foods", filterText: "Whole Foods", category: groceries, accountId: 2)
+        let traderJoes = PersistenceService.Vendor(name: "Trader Joe's", filterText: "Trader Joe", category: groceries, accountId: 2)
+        let chipotle = PersistenceService.Vendor(name: "Chipotle", filterText: "Chipotle", category: dining, accountId: 2)
+        let target = PersistenceService.Vendor(name: "Target", filterText: "Target", category: shopping, accountId: 2)
+
+        for vendor in [wholeFoods, traderJoes, chipotle, target] {
+            context.insert(vendor)
+        }
+
+        // Create transfer rules for Amex Gold (targetAccountId: 2)
+        // Rule: Groceries paid from Ally Savings (sourceAccountId: 3)
+        let groceryRule = PersistenceService.TransferRule(
+            name: "Groceries → Savings",
+            vendor: wholeFoods,
+            sourceAccountId: 3,
+            targetAccountId: 2,
+            priority: 10
+        )
+
+        let groceryRule2 = PersistenceService.TransferRule(
+            name: "Groceries → Savings",
+            vendor: traderJoes,
+            sourceAccountId: 3,
+            targetAccountId: 2,
+            priority: 10
+        )
+
+        // Default catch-all: everything else from Chase Checking (sourceAccountId: 1)
+        let defaultRule = PersistenceService.TransferRule(
+            name: "Everything Else → Checking",
+            sourceAccountId: 1,
+            targetAccountId: 2,
+            priority: 0
+        )
+
+        for rule in [groceryRule, groceryRule2, defaultRule] {
+            context.insert(rule)
+        }
+
+        try? context.save()
     }
 
     @MainActor
