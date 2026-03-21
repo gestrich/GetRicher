@@ -2,17 +2,18 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(SettingsModel.self) var settingsModel
+    @AppStorage("selectedTab") private var selectedTab: String = "dashboard"
 
     var body: some View {
         VStack(spacing: 0) {
             if settingsModel.isDemoMode {
                 DemoModeBanner()
             }
-            TabView {
-                Tab("Dashboard", systemImage: "chart.bar.fill") {
+            TabView(selection: $selectedTab) {
+                Tab("Dashboard", systemImage: "chart.bar.fill", value: "dashboard") {
                     CombinedView()
                 }
-                Tab("Weekly Paydown", systemImage: "creditcard.fill") {
+                Tab("Weekly Paydown", systemImage: "creditcard.fill", value: "paydown") {
                     WeeklyPaydownView()
                 }
             }
