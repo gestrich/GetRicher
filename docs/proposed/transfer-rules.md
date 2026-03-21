@@ -39,6 +39,8 @@ public final class Vendor {
     public var id: UUID
     public var name: String              // User-friendly label, e.g. "Costco"
     public var filterText: String        // Substring match against transaction payee
+    public var imageData: Data?          // Optional vendor logo/image
+    public var category: Category?       // Optional category association
     public var accountId: Int?           // Lunch Money account this vendor applies to
     public var createdAt: Date
 }
