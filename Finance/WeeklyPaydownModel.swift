@@ -82,12 +82,18 @@ struct TransferBreakdown: Identifiable {
     let transactionCount: Int
 }
 
+enum PeriodSelection: String, CaseIterable {
+    case current = "Current Period"
+    case last = "Last Period"
+}
+
 // MARK: - Model
 
 @MainActor @Observable
 class WeeklyPaydownModel {
 
     var pivotDay: PivotDay = .saturday
+    var periodSelection: PeriodSelection = .last
 
     func account(id accountId: Int?, from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
         guard let accountId = accountId else { return nil }
@@ -95,7 +101,23 @@ class WeeklyPaydownModel {
     }
 
     var dateRange: PaydownDateRange {
-        PaydownDateRange.compute(pivotDay: pivotDay)
+        let currentRange = PaydownDateRange.compute(pivotDay: pivotDay)
+        switch periodSelection {
+        case .current:
+            return currentRange
+        case .last:
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            guard let currentEnd = formatter.date(from: currentRange.end),
+                  let currentStart = formatter.date(from: currentRange.start) else { return currentRange }
+            let calendar = Calendar.current
+            let lastEnd = calendar.date(byAdding: .day, value: -7, to: currentEnd)!
+            let lastStart = calendar.date(byAdding: .day, value: -7, to: currentStart)!
+            return PaydownDateRange(
+                start: formatter.string(from: lastStart),
+                end: formatter.string(from: lastEnd)
+            )
+        }
     }
 
     func periodTransactions(accountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {

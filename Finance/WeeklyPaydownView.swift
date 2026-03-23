@@ -105,6 +105,13 @@ struct WeeklyPaydownView: View {
                 }
             }
             .pickerStyle(.menu)
+
+            Picker("Period", selection: $paydownModel.periodSelection) {
+                ForEach(PeriodSelection.allCases, id: \.self) { period in
+                    Text(period.rawValue).tag(period)
+                }
+            }
+            .pickerStyle(.segmented)
         }
         .padding(.horizontal)
     }
@@ -208,15 +215,20 @@ struct WeeklyPaydownView: View {
                     transactions: pendingTransactions
                 )
             } label: {
-                CalculationRow(
-                    label: "Pending in Period",
-                    amount: calc.pendingAdjustment,
-                    explanation: "Transactions within the 7-day period that haven't cleared yet. These are real charges that your balance doesn't include, so we add them.",
-                    isTotal: false,
-                    sign: "+"
-                )
+                HStack {
+                    CalculationRow(
+                        label: "Pending in Period",
+                        amount: calc.pendingAdjustment,
+                        explanation: "Transactions within the 7-day period that haven't cleared yet. These are real charges that your balance doesn't include, so we add them.",
+                        isTotal: false,
+                        sign: "+"
+                    )
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
 
             NavigationLink {
                 FilteredTransactionListView(
@@ -224,15 +236,20 @@ struct WeeklyPaydownView: View {
                     transactions: postPeriodTransactions
                 )
             } label: {
-                CalculationRow(
-                    label: "Cleared After Period",
-                    amount: calc.postPeriodAdjustment,
-                    explanation: "Transactions that cleared AFTER the 7-day window. They're already in your balance but belong to next week, so we subtract them.",
-                    isTotal: false,
-                    sign: "−"
-                )
+                HStack {
+                    CalculationRow(
+                        label: "Cleared After Period",
+                        amount: calc.postPeriodAdjustment,
+                        explanation: "Transactions that cleared AFTER the 7-day window. They're already in your balance but belong to next week, so we subtract them.",
+                        isTotal: false,
+                        sign: "−"
+                    )
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
 
             if hasTransfers {
                 CalculationRow(
