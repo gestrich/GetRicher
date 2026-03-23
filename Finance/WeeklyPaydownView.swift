@@ -40,6 +40,7 @@ struct WeeklyPaydownView: View {
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
+                                periodTotalsSection(periodTransactions: periodTx)
                                 transferBreakdownSection(periodTransactions: periodTx)
                                 calculationBreakdownSection(periodTransactions: periodTx)
                                 vendorChart(periodTransactions: periodTx)
@@ -126,6 +127,71 @@ struct WeeklyPaydownView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
+    }
+
+    private func periodTotalsSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
+        let pending = periodTransactions.filter { $0.isPending }
+        let cleared = periodTransactions.filter { !$0.isPending }
+        let pendingTotal = pending.reduce(0.0) { $0 + abs($1.toBase) }
+        let clearedTotal = cleared.reduce(0.0) { $0 + abs($1.toBase) }
+        let grandTotal = pendingTotal + clearedTotal
+
+        return NavigationLink {
+            FilteredTransactionListView(
+                title: "All Period Transactions",
+                transactions: periodTransactions
+            )
+        } label: {
+            VStack(spacing: 0) {
+                Text("Period Transactions")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
+
+                HStack {
+                    Text("Cleared")
+                        .font(.body)
+                    Spacer()
+                    Text("\(cleared.count) txns")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(CurrencyFormatter.format(amount: clearedTotal, currency: "USD"))
+                        .font(.body.monospacedDigit())
+                }
+                .padding(.vertical, 4)
+
+                HStack {
+                    Text("Pending")
+                        .font(.body)
+                    Spacer()
+                    Text("\(pending.count) txns")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(CurrencyFormatter.format(amount: pendingTotal, currency: "USD"))
+                        .font(.body.monospacedDigit())
+                }
+                .padding(.vertical, 4)
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                HStack {
+                    Text("Total")
+                        .font(.title3.bold())
+                    Spacer()
+                    Text("\(periodTransactions.count) txns")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(CurrencyFormatter.format(amount: grandTotal, currency: "USD"))
+                        .font(.title3.bold())
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
+        }
+        .foregroundStyle(.primary)
     }
 
     private func transferBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
