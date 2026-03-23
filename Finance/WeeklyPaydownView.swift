@@ -186,6 +186,8 @@ struct WeeklyPaydownView: View {
         let transferTotal = breakdown.reduce(0.0) { $0 + $1.amount }
         let hasTransfers = !breakdown.isEmpty
         let finalAmount = calc.adjustedSpending - transferTotal
+        let pendingTransactions = periodTransactions.filter { $0.isPending }
+        let postPeriodTransactions = paydownModel.postPeriodClearedTransactions(accountId: selectedAccountIdOrNil, from: transactions)
 
         return VStack(spacing: 0) {
             Text("Paydown Calculation")
@@ -200,21 +202,37 @@ struct WeeklyPaydownView: View {
                 sign: ""
             )
 
-            CalculationRow(
-                label: "Pending in Period",
-                amount: calc.pendingAdjustment,
-                explanation: "Transactions within the 7-day period that haven't cleared yet. These are real charges that your balance doesn't include, so we add them.",
-                isTotal: false,
-                sign: "+"
-            )
+            NavigationLink {
+                FilteredTransactionListView(
+                    title: "Pending in Period",
+                    transactions: pendingTransactions
+                )
+            } label: {
+                CalculationRow(
+                    label: "Pending in Period",
+                    amount: calc.pendingAdjustment,
+                    explanation: "Transactions within the 7-day period that haven't cleared yet. These are real charges that your balance doesn't include, so we add them.",
+                    isTotal: false,
+                    sign: "+"
+                )
+            }
+            .buttonStyle(.plain)
 
-            CalculationRow(
-                label: "Cleared After Period",
-                amount: calc.postPeriodAdjustment,
-                explanation: "Transactions that cleared AFTER the 7-day window. They're already in your balance but belong to next week, so we subtract them.",
-                isTotal: false,
-                sign: "−"
-            )
+            NavigationLink {
+                FilteredTransactionListView(
+                    title: "Cleared After Period",
+                    transactions: postPeriodTransactions
+                )
+            } label: {
+                CalculationRow(
+                    label: "Cleared After Period",
+                    amount: calc.postPeriodAdjustment,
+                    explanation: "Transactions that cleared AFTER the 7-day window. They're already in your balance but belong to next week, so we subtract them.",
+                    isTotal: false,
+                    sign: "−"
+                )
+            }
+            .buttonStyle(.plain)
 
             if hasTransfers {
                 CalculationRow(
