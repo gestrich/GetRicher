@@ -204,11 +204,14 @@ struct WeeklyPaydownView: View {
         let transferTotal = breakdown.reduce(0.0) { $0 + $1.amount }
         let hasTransfers = !breakdown.isEmpty
         let finalAmount = calc.adjustedSpending - transferTotal
+        let debitTransactions = periodTransactions.filter { $0.toBase >= 0 }
+        let creditTransactions = periodTransactions.filter { $0.toBase < 0 }
+        let debitTotal = debitTransactions.reduce(0.0) { $0 + abs($1.toBase) }
+        let creditTotal = creditTransactions.reduce(0.0) { $0 + abs($1.toBase) }
         let pendingTransactions = periodTransactions.filter { $0.isPending }
         let postedInPeriod = periodTransactions.filter { !$0.isPending }
         let pendingTotal = pendingTransactions.reduce(0.0) { $0 + abs($1.toBase) }
         let postedInPeriodTotal = postedInPeriod.reduce(0.0) { $0 + abs($1.toBase) }
-        let periodGrandTotal = pendingTotal + postedInPeriodTotal
         let postPeriodTransactions = paydownModel.postPeriodClearedTransactions(accountId: selectedAccountIdOrNil, from: transactions)
 
         return VStack(spacing: 0) {
@@ -218,20 +221,20 @@ struct WeeklyPaydownView: View {
 
             NavigationLink {
                 FilteredTransactionListView(
-                    title: "Period Transactions",
-                    transactions: periodTransactions
+                    title: "Period Debits",
+                    transactions: debitTransactions
                 )
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("Period Spending")
+                            Text("Period Debits")
                                 .font(.body)
                             Spacer()
-                            Text(CurrencyFormatter.format(amount: periodGrandTotal, currency: "USD"))
+                            Text(CurrencyFormatter.format(amount: debitTotal, currency: "USD"))
                                 .font(.body.monospacedDigit())
                         }
-                        Text("\(postedInPeriod.count) posted (\(CurrencyFormatter.format(amount: postedInPeriodTotal, currency: "USD"))) · \(pendingTransactions.count) pending (\(CurrencyFormatter.format(amount: pendingTotal, currency: "USD")))")
+                        Text("\(debitTransactions.count) transaction\(debitTransactions.count == 1 ? "" : "s")")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -242,6 +245,39 @@ struct WeeklyPaydownView: View {
                 .padding(.vertical, 6)
             }
             .foregroundStyle(.primary)
+
+            NavigationLink {
+                FilteredTransactionListView(
+                    title: "Period Credits",
+                    transactions: creditTransactions
+                )
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Period Credits")
+                                .font(.body)
+                            Spacer()
+                            Text(CurrencyFormatter.format(amount: creditTotal, currency: "USD"))
+                                .font(.body.monospacedDigit())
+                                .foregroundStyle(.green)
+                        }
+                        Text("\(creditTransactions.count) transaction\(creditTransactions.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 6)
+            }
+            .foregroundStyle(.primary)
+
+            Text("\(postedInPeriod.count) posted · \(pendingTransactions.count) pending")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 4)
 
             Divider()
                 .padding(.vertical, 4)
