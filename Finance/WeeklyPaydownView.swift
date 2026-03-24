@@ -106,12 +106,23 @@ struct WeeklyPaydownView: View {
             }
             .pickerStyle(.menu)
 
-            Picker("Period", selection: $paydownModel.periodSelection) {
-                ForEach(PeriodSelection.allCases, id: \.self) { period in
-                    Text(period.rawValue).tag(period)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(paydownModel.budgetPeriods) { period in
+                        Button {
+                            paydownModel.selectedPeriod = period
+                        } label: {
+                            Text(period.displayLabel)
+                                .font(.subheadline)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(paydownModel.selectedPeriod == period ? Color.accentColor : Color(.systemGray5))
+                                .foregroundStyle(paydownModel.selectedPeriod == period ? .white : .primary)
+                                .cornerRadius(8)
+                        }
+                    }
                 }
             }
-            .pickerStyle(.segmented)
         }
         .padding(.horizontal)
     }

@@ -27,12 +27,12 @@ struct VendorSpendingView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                         Button("Retry") {
-                            let dateRange = DateFilter.all.dateRange
+                            let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
                             transactionsModel.sync(
                                 context: modelContext,
                                 accountId: nil,
-                                startDate: dateRange.start,
-                                endDate: dateRange.end
+                                startDate: twoYearsAgo,
+                                endDate: Date()
                             )
                         }
                         .buttonStyle(.borderedProminent)
@@ -118,21 +118,21 @@ struct VendorSpendingView: View {
             }
             .navigationTitle("Spending by Vendor")
             .task {
-                let dateRange = DateFilter.all.dateRange
+                let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
                 transactionsModel.sync(
                     context: modelContext,
                     accountId: nil,
-                    startDate: dateRange.start,
-                    endDate: dateRange.end
+                    startDate: twoYearsAgo,
+                    endDate: Date()
                 )
             }
             .refreshable {
-                let dateRange = DateFilter.all.dateRange
+                let twoYearsAgo = Calendar.current.date(byAdding: .year, value: -2, to: Date())!
                 transactionsModel.sync(
                     context: modelContext,
                     accountId: nil,
-                    startDate: dateRange.start,
-                    endDate: dateRange.end
+                    startDate: twoYearsAgo,
+                    endDate: Date()
                 )
             }
         }
