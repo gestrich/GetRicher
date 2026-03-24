@@ -1,9 +1,19 @@
 import CoreService
 import PersistenceService
+import SwiftData
 import SwiftUI
 
 struct TransactionDetailView: View {
     let transaction: PersistenceService.Transaction
+    @Query(sort: \PersistenceService.Vendor.name) var vendors: [PersistenceService.Vendor]
+    @State private var editingVendor: PersistenceService.Vendor?
+    @State private var isCreatingVendor = false
+
+    private var matchedVendor: PersistenceService.Vendor? {
+        vendors.first { vendor in
+            transaction.payee.localizedCaseInsensitiveContains(vendor.filterText)
+        }
+    }
 
     var body: some View {
         List {
@@ -22,6 +32,53 @@ struct TransactionDetailView: View {
                 DetailRow(label: "Is Income", value: transaction.isIncome ? "Yes" : "No")
                 DetailRow(label: "Exclude from Budget", value: transaction.excludeFromBudget ? "Yes" : "No")
                 DetailRow(label: "Exclude from Totals", value: transaction.excludeFromTotals ? "Yes" : "No")
+            }
+
+            Section("Vendor") {
+                if let vendor = matchedVendor {
+                    Button {
+                        editingVendor = vendor
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(vendor.name)
+                                .font(.headline)
+                            Text("Filter: \"\(vendor.filterText)\"")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let category = vendor.category {
+                                HStack(spacing: 4) {
+                                    if let emoji = category.emoji {
+                                        Text(emoji)
+                                    }
+                                    Text(category.name)
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                } else {
+                    Button {
+                        isCreatingVendor = true
+                    } label: {
+                        Label("Create Vendor", systemImage: "plus.circle")
+                    }
+                }
+            }
+            .sheet(item: $editingVendor) { vendor in
+                NavigationStack {
+                    VendorEditView(vendor: vendor)
+                }
+            }
+            .sheet(isPresented: $isCreatingVendor) {
+                NavigationStack {
+                    VendorEditView(
+                        prefilledName: transaction.payee,
+                        prefilledFilterText: transaction.payee,
+                        prefilledAccountId: transaction.plaidAccountId
+                    )
+                }
             }
 
             if transaction.categoryId != nil || transaction.categoryName != nil {
