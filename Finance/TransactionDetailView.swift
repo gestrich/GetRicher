@@ -15,12 +15,11 @@ struct TransactionDetailView: View {
                 DetailRow(label: "Original Name", value: transaction.originalName)
                 DetailRow(label: "Amount", value: CurrencyFormatter.format(amount: transaction.amount, currency: transaction.currency))
                 DetailRow(label: "To Base", value: CurrencyFormatter.format(amount: transaction.toBase, currency: transaction.currency))
-                DetailRow(label: "Status", value: transaction.status.capitalized)
+                DetailRow(label: "Status", value: transaction.isPending ? "Pending" : "Posted")
             }
 
             Section("Flags") {
                 DetailRow(label: "Is Income", value: transaction.isIncome ? "Yes" : "No")
-                DetailRow(label: "Is Pending", value: transaction.isPending ? "Yes" : "No")
                 DetailRow(label: "Exclude from Budget", value: transaction.excludeFromBudget ? "Yes" : "No")
                 DetailRow(label: "Exclude from Totals", value: transaction.excludeFromTotals ? "Yes" : "No")
             }
