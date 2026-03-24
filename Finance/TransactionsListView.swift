@@ -121,7 +121,7 @@ struct TransactionRow: View {
 
                 Spacer()
 
-                Text(transaction.status.capitalized)
+                Text(transaction.isPending ? "Pending" : "Posted")
                     .font(.caption)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -145,15 +145,6 @@ struct TransactionRow: View {
     }
 
     private var statusColor: Color {
-        switch transaction.status.lowercased() {
-        case "cleared":
-            return .green
-        case "pending":
-            return .orange
-        case "uncleared":
-            return .gray
-        default:
-            return .blue
-        }
+        transaction.isPending ? .orange : .green
     }
 }

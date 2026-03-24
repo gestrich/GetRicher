@@ -205,10 +205,10 @@ struct WeeklyPaydownView: View {
         let hasTransfers = !breakdown.isEmpty
         let finalAmount = calc.adjustedSpending - transferTotal
         let pendingTransactions = periodTransactions.filter { $0.isPending }
-        let clearedInPeriod = periodTransactions.filter { !$0.isPending }
+        let postedInPeriod = periodTransactions.filter { !$0.isPending }
         let pendingTotal = pendingTransactions.reduce(0.0) { $0 + abs($1.toBase) }
-        let clearedInPeriodTotal = clearedInPeriod.reduce(0.0) { $0 + abs($1.toBase) }
-        let periodGrandTotal = pendingTotal + clearedInPeriodTotal
+        let postedInPeriodTotal = postedInPeriod.reduce(0.0) { $0 + abs($1.toBase) }
+        let periodGrandTotal = pendingTotal + postedInPeriodTotal
         let postPeriodTransactions = paydownModel.postPeriodClearedTransactions(accountId: selectedAccountIdOrNil, from: transactions)
 
         return VStack(spacing: 0) {
@@ -231,7 +231,7 @@ struct WeeklyPaydownView: View {
                             Text(CurrencyFormatter.format(amount: periodGrandTotal, currency: "USD"))
                                 .font(.body.monospacedDigit())
                         }
-                        Text("\(clearedInPeriod.count) cleared (\(CurrencyFormatter.format(amount: clearedInPeriodTotal, currency: "USD"))) · \(pendingTransactions.count) pending (\(CurrencyFormatter.format(amount: pendingTotal, currency: "USD")))")
+                        Text("\(postedInPeriod.count) posted (\(CurrencyFormatter.format(amount: postedInPeriodTotal, currency: "USD"))) · \(pendingTransactions.count) pending (\(CurrencyFormatter.format(amount: pendingTotal, currency: "USD")))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -249,7 +249,7 @@ struct WeeklyPaydownView: View {
             CalculationRow(
                 label: "Current Balance",
                 amount: calc.currentBalance,
-                explanation: "The balance reported by your bank right now. This reflects all cleared transactions but not pending ones.",
+                explanation: "The balance reported by your bank right now. This reflects all posted transactions but not pending ones.",
                 isTotal: false,
                 sign: ""
             )
@@ -264,7 +264,7 @@ struct WeeklyPaydownView: View {
                     CalculationRow(
                         label: "Pending in Period",
                         amount: calc.pendingAdjustment,
-                        explanation: "Transactions within the 7-day period that haven't cleared yet. These are real charges that your balance doesn't include, so we add them.",
+                        explanation: "Transactions within the period that haven't posted yet. These are real charges that your balance doesn't include, so we add them.",
                         isTotal: false,
                         sign: "+"
                     )
@@ -277,15 +277,15 @@ struct WeeklyPaydownView: View {
 
             NavigationLink {
                 FilteredTransactionListView(
-                    title: "Cleared After Period",
+                    title: "Posted After Period",
                     transactions: postPeriodTransactions
                 )
             } label: {
                 HStack {
                     CalculationRow(
-                        label: "Cleared After Period",
+                        label: "Posted After Period",
                         amount: calc.postPeriodAdjustment,
-                        explanation: "Transactions that cleared AFTER the 7-day window. They're already in your balance but belong to next week, so we subtract them.",
+                        explanation: "Transactions that posted AFTER the period window. They're already in your balance but belong to a future period, so we subtract them.",
                         isTotal: false,
                         sign: "−"
                     )

@@ -135,8 +135,8 @@ class WeeklyPaydownModel {
         return transactions.filter { tx in
             let accountMatch = accountId == nil || tx.plaidAccountId == accountId
             let isAfterPeriod = tx.date > range.end
-            let isCleared = tx.status.lowercased() == "cleared"
-            return accountMatch && isAfterPeriod && isCleared && !tx.isIncome
+            let isPosted = !tx.isPending
+            return accountMatch && isAfterPeriod && isPosted && !tx.isIncome
         }
     }
 
