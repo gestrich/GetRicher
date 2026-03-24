@@ -107,7 +107,17 @@ struct VendorSpendingView: View {
                                         .padding(.horizontal)
 
                                     ForEach(vendorSpending) { vendor in
-                                        VendorRow(vendor: vendor)
+                                        NavigationLink {
+                                            FilteredTransactionListView(
+                                                title: vendor.vendor,
+                                                transactions: filteredTransactions.filter {
+                                                    $0.payee == vendor.vendor && !$0.isIncome
+                                                }
+                                            )
+                                        } label: {
+                                            VendorRow(vendor: vendor)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding()
