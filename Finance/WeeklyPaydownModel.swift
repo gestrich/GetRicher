@@ -82,18 +82,27 @@ struct TransferBreakdown: Identifiable {
     let transactionCount: Int
 }
 
-enum PeriodSelection: String, CaseIterable {
-    case current = "Current Period"
-    case last = "Last Period"
-}
-
 // MARK: - Model
 
 @MainActor @Observable
 class WeeklyPaydownModel {
 
-    var pivotDay: PivotDay = .saturday
-    var periodSelection: PeriodSelection = .last
+    var pivotDay: PivotDay = .saturday {
+        didSet { refreshPeriods() }
+    }
+    var budgetPeriods: [BudgetPeriod] = []
+    var selectedPeriod: BudgetPeriod?
+
+    init() {
+        refreshPeriods()
+    }
+
+    func refreshPeriods() {
+        let periods = BudgetPeriod.periods(count: 11, pivotDay: pivotDay)
+        budgetPeriods = periods
+        // Default to the most recent completed period (index 1) if available
+        selectedPeriod = periods.count > 1 ? periods[1] : periods.first
+    }
 
     func account(id accountId: Int?, from accounts: [PersistenceService.PlaidAccount]) -> PersistenceService.PlaidAccount? {
         guard let accountId = accountId else { return nil }
@@ -101,23 +110,15 @@ class WeeklyPaydownModel {
     }
 
     var dateRange: PaydownDateRange {
-        let currentRange = PaydownDateRange.compute(pivotDay: pivotDay)
-        switch periodSelection {
-        case .current:
-            return currentRange
-        case .last:
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            guard let currentEnd = formatter.date(from: currentRange.end),
-                  let currentStart = formatter.date(from: currentRange.start) else { return currentRange }
-            let calendar = Calendar.current
-            let lastEnd = calendar.date(byAdding: .day, value: -7, to: currentEnd)!
-            let lastStart = calendar.date(byAdding: .day, value: -7, to: currentStart)!
-            return PaydownDateRange(
-                start: formatter.string(from: lastStart),
-                end: formatter.string(from: lastEnd)
-            )
+        guard let period = selectedPeriod else {
+            return PaydownDateRange.compute(pivotDay: pivotDay)
         }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return PaydownDateRange(
+            start: formatter.string(from: period.start),
+            end: formatter.string(from: period.end)
+        )
     }
 
     func periodTransactions(accountId: Int?, from transactions: [PersistenceService.Transaction]) -> [PersistenceService.Transaction] {

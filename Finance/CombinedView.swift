@@ -10,15 +10,14 @@ struct CombinedView: View {
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @AppStorage("dashboardSelectedAccountId") private var selectedAccountId: Int = -1
-    @State private var selectedDateFilter: DateFilter = .all
+    @State private var budgetPeriods: [BudgetPeriod] = BudgetPeriod.periods(count: 11, pivotDay: .saturday)
+    @State private var selectedPeriod: BudgetPeriod? = BudgetPeriod.periods(count: 11, pivotDay: .saturday).first
     @State private var showSettings = false
 
     private var filteredTransactions: [PersistenceService.Transaction] {
-        let dateRange = selectedDateFilter.dateRange
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let start = formatter.string(from: dateRange.start)
-        let end = formatter.string(from: dateRange.end)
+        guard let period = selectedPeriod else { return [] }
+        let start = period.startString
+        let end = period.endString
 
         return transactions.filter { tx in
             let dateMatch = tx.date >= start && tx.date <= end
@@ -83,18 +82,20 @@ struct CombinedView: View {
                                         .fontWeight(.semibold)
                                 }
 
-                                HStack(spacing: 8) {
-                                    ForEach(DateFilter.allCases, id: \.self) { filter in
-                                        Button {
-                                            selectedDateFilter = filter
-                                        } label: {
-                                            Text(filter.rawValue)
-                                                .font(.subheadline)
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 8)
-                                                .background(selectedDateFilter == filter ? Color.accentColor : Color(.systemGray5))
-                                                .foregroundStyle(selectedDateFilter == filter ? .white : .primary)
-                                                .cornerRadius(8)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(budgetPeriods) { period in
+                                            Button {
+                                                selectedPeriod = period
+                                            } label: {
+                                                Text(period.displayLabel)
+                                                    .font(.subheadline)
+                                                    .padding(.horizontal, 12)
+                                                    .padding(.vertical, 8)
+                                                    .background(selectedPeriod == period ? Color.accentColor : Color(.systemGray5))
+                                                    .foregroundStyle(selectedPeriod == period ? .white : .primary)
+                                                    .cornerRadius(8)
+                                            }
                                         }
                                     }
                                 }
@@ -186,7 +187,7 @@ struct CombinedView: View {
             .refreshable {
                 await syncDataAndWait()
             }
-            .onChange(of: selectedDateFilter) { _, _ in
+            .onChange(of: selectedPeriod) { _, _ in
                 syncAllAccounts()
             }
         }
@@ -197,22 +198,22 @@ struct CombinedView: View {
     }
 
     private func syncAllAccounts() {
-        let dateRange = selectedDateFilter.dateRange
+        guard let period = selectedPeriod else { return }
         transactionsModel.sync(
             context: modelContext,
             accountId: nil,
-            startDate: dateRange.start,
-            endDate: dateRange.end
+            startDate: period.start,
+            endDate: period.end
         )
     }
 
     private func syncDataAndWait() async {
-        let dateRange = selectedDateFilter.dateRange
+        guard let period = selectedPeriod else { return }
         await transactionsModel.syncAndWait(
             context: modelContext,
             accountId: selectedAccountIdOrNil,
-            startDate: dateRange.start,
-            endDate: dateRange.end
+            startDate: period.start,
+            endDate: period.end
         )
     }
 }
