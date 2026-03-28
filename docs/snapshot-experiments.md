@@ -37,3 +37,4 @@ Did it work? Any issues? How does it compare to other techniques?
 | 1 | `ImageRenderer` in `swift test` | Awake (irrelevant) | Background launchd session (OpenClaw daemon) | ✅ Yes | #24 |
 | 2a | `xcodebuild test` (direct) | Awake | Background launchd session (OpenClaw daemon) | ❌ Hangs | #24 |
 | 2b | `xcodebuild test` via Aqua launchctl | Awake | Aqua session (bootstrapped LaunchAgent) | ✅ Ran (test failed on app state, not infra) | #24 |
+| 3 | `xcode-sim-automation` InteractiveControlLoop via Aqua launchctl + CLI from Background | Awake | Aqua (test runner) + Background (CLI client) | ✅ Full screenshot captured | #24 |

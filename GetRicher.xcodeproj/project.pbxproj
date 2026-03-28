@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		46BDDB542F77D0AE00335E29 /* XCUITestControl in Frameworks */ = {isa = PBXBuildFile; productRef = 46BDDB532F77D0AE00335E29 /* XCUITestControl */; };
 		A964267F2F42994C0038587D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = A964267E2F42994C0038587D /* README.md */; };
 		B0000001300000000000001 /* CoreService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000001 /* CoreService */; };
 		B0000001300000000000002 /* KeychainSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000002 /* KeychainSDK */; };
@@ -50,6 +51,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				46BDDB542F77D0AE00335E29 /* XCUITestControl in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,6 +111,7 @@
 			);
 			name = GetRicherUITests;
 			packageProductDependencies = (
+				46BDDB532F77D0AE00335E29 /* XCUITestControl */,
 			);
 			productName = GetRicherUITests;
 			productReference = A96426912F42ACAC0038587D /* GetRicherUITests.xctest */;
@@ -172,6 +175,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B0000003300000000000001 /* XCLocalSwiftPackageReference "FinancePackage" */,
+				46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A995B8DD2F18604A00855692 /* Products */;
@@ -494,7 +498,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gestrich/xcode-sim-automation.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		46BDDB532F77D0AE00335E29 /* XCUITestControl */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */;
+			productName = XCUITestControl;
+		};
 		B0000002300000000000001 /* CoreService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CoreService;
@@ -507,6 +527,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = LunchMoneySDK;
 		};
+		B0000002300000000000005 /* Uniflow */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Uniflow;
+		};
 		B0000002300000000000006 /* PersistenceService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PersistenceService;
@@ -514,10 +538,6 @@
 		B0000002300000000000007 /* SyncService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SyncService;
-		};
-		B0000002300000000000005 /* Uniflow */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Uniflow;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
