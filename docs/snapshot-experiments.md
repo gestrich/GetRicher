@@ -34,4 +34,6 @@ Did it work? Any issues? How does it compare to other techniques?
 
 | # | Technique | Display State | Process Context | Worked? | PR |
 |---|-----------|--------------|-----------------|---------|-----|
-| 1 | `ImageRenderer` in `swift test` | Awake (GUI logged in) | Background launchd session (OpenClaw daemon) | ✅ Yes | #24 |
+| 1 | `ImageRenderer` in `swift test` | Awake (irrelevant) | Background launchd session (OpenClaw daemon) | ✅ Yes | #24 |
+| 2a | `xcodebuild test` (direct) | Awake | Background launchd session (OpenClaw daemon) | ❌ Hangs | #24 |
+| 2b | `xcodebuild test` via Aqua launchctl | Awake | Aqua session (bootstrapped LaunchAgent) | ✅ Ran (test failed on app state, not infra) | #24 |
