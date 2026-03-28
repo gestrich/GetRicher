@@ -40,6 +40,16 @@
                ReferencedContainer = "container:GetRicher.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "46BDDB8C2F77D5EA00335E29"
+               BuildableName = "GetRicherInteractiveTests.xctest"
+               BlueprintName = "GetRicherInteractiveTests"
+               ReferencedContainer = "container:GetRicher.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

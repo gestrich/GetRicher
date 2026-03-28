@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		46BDDB9C2F77D91E00335E29 /* XCUITestControl in Frameworks */ = {isa = PBXBuildFile; productRef = 46BDDB9B2F77D91E00335E29 /* XCUITestControl */; };
 		A964267F2F42994C0038587D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = A964267E2F42994C0038587D /* README.md */; };
 		B0000001300000000000001 /* CoreService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000001 /* CoreService */; };
 		B0000001300000000000002 /* KeychainSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000002 /* KeychainSDK */; };
@@ -17,6 +18,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		46BDDB962F77D5F200335E29 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A995B8D42F18604A00855692 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A995B8DB2F18604A00855692;
+			remoteInfo = GetRicher;
+		};
 		A96426972F42ACAC0038587D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A995B8D42F18604A00855692 /* Project object */;
@@ -27,12 +35,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		46BDDB8D2F77D5EA00335E29 /* GetRicherInteractiveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GetRicherInteractiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A964267E2F42994C0038587D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		A96426912F42ACAC0038587D /* GetRicherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GetRicherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A995B8DC2F18604A00855692 /* GetRicher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GetRicher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		46BDDB8E2F77D5EA00335E29 /* GetRicherInteractiveTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GetRicherInteractiveTests;
+			sourceTree = "<group>";
+		};
 		A96426922F42ACAC0038587D /* GetRicherUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = GetRicherUITests;
@@ -46,6 +60,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		46BDDB8A2F77D5EA00335E29 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				46BDDB9C2F77D91E00335E29 /* XCUITestControl in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A964268E2F42ACAC0038587D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -69,12 +91,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		46BDDB9A2F77D91E00335E29 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A995B8D32F18604A00855692 = {
 			isa = PBXGroup;
 			children = (
 				A964267E2F42994C0038587D /* README.md */,
 				A995B8DE2F18604A00855692 /* Finance */,
 				A96426922F42ACAC0038587D /* GetRicherUITests */,
+				46BDDB8E2F77D5EA00335E29 /* GetRicherInteractiveTests */,
+				46BDDB9A2F77D91E00335E29 /* Frameworks */,
 				A995B8DD2F18604A00855692 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -84,6 +115,7 @@
 			children = (
 				A995B8DC2F18604A00855692 /* GetRicher.app */,
 				A96426912F42ACAC0038587D /* GetRicherUITests.xctest */,
+				46BDDB8D2F77D5EA00335E29 /* GetRicherInteractiveTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -91,6 +123,30 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		46BDDB8C2F77D5EA00335E29 /* GetRicherInteractiveTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 46BDDB952F77D5EA00335E29 /* Build configuration list for PBXNativeTarget "GetRicherInteractiveTests" */;
+			buildPhases = (
+				46BDDB892F77D5EA00335E29 /* Sources */,
+				46BDDB8A2F77D5EA00335E29 /* Frameworks */,
+				46BDDB8B2F77D5EA00335E29 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				46BDDB972F77D5F200335E29 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				46BDDB8E2F77D5EA00335E29 /* GetRicherInteractiveTests */,
+			);
+			name = GetRicherInteractiveTests;
+			packageProductDependencies = (
+				46BDDB9B2F77D91E00335E29 /* XCUITestControl */,
+			);
+			productName = GetRicherInteractiveTests;
+			productReference = 46BDDB8D2F77D5EA00335E29 /* GetRicherInteractiveTests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		A96426902F42ACAC0038587D /* GetRicherUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A96426992F42ACAC0038587D /* Build configuration list for PBXNativeTarget "GetRicherUITests" */;
@@ -149,9 +205,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
+				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					46BDDB8C2F77D5EA00335E29 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = A995B8DB2F18604A00855692;
+					};
 					A96426902F42ACAC0038587D = {
 						CreatedOnToolsVersion = 26.1.1;
 						TestTargetID = A995B8DB2F18604A00855692;
@@ -172,6 +232,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B0000003300000000000001 /* XCLocalSwiftPackageReference "FinancePackage" */,
+				46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A995B8DD2F18604A00855692 /* Products */;
@@ -180,11 +241,19 @@
 			targets = (
 				A995B8DB2F18604A00855692 /* GetRicher */,
 				A96426902F42ACAC0038587D /* GetRicherUITests */,
+				46BDDB8C2F77D5EA00335E29 /* GetRicherInteractiveTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		46BDDB8B2F77D5EA00335E29 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A964268F2F42ACAC0038587D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -203,6 +272,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		46BDDB892F77D5EA00335E29 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A964268D2F42ACAC0038587D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -220,6 +296,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		46BDDB972F77D5F200335E29 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A995B8DB2F18604A00855692 /* GetRicher */;
+			targetProxy = 46BDDB962F77D5F200335E29 /* PBXContainerItemProxy */;
+		};
 		A96426982F42ACAC0038587D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A995B8DB2F18604A00855692 /* GetRicher */;
@@ -228,6 +309,54 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		46BDDB932F77D5EA00335E29 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U954KV7Q7Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.gestrich.GetRicherInteractiveTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = GetRicher;
+			};
+			name = Debug;
+		};
+		46BDDB942F77D5EA00335E29 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U954KV7Q7Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.gestrich.GetRicherInteractiveTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = GetRicher;
+			};
+			name = Release;
+		};
 		A964269A2F42ACAC0038587D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -458,6 +587,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		46BDDB952F77D5EA00335E29 /* Build configuration list for PBXNativeTarget "GetRicherInteractiveTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				46BDDB932F77D5EA00335E29 /* Debug */,
+				46BDDB942F77D5EA00335E29 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A96426992F42ACAC0038587D /* Build configuration list for PBXNativeTarget "GetRicherUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -494,7 +632,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gestrich/xcode-sim-automation.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		46BDDB9B2F77D91E00335E29 /* XCUITestControl */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 46BDDB522F77D0AE00335E29 /* XCRemoteSwiftPackageReference "xcode-sim-automation" */;
+			productName = XCUITestControl;
+		};
 		B0000002300000000000001 /* CoreService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CoreService;
@@ -507,6 +661,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = LunchMoneySDK;
 		};
+		B0000002300000000000005 /* Uniflow */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Uniflow;
+		};
 		B0000002300000000000006 /* PersistenceService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PersistenceService;
@@ -514,10 +672,6 @@
 		B0000002300000000000007 /* SyncService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SyncService;
-		};
-		B0000002300000000000005 /* Uniflow */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Uniflow;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
