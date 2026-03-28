@@ -41,5 +41,10 @@ let package = Package(
             dependencies: ["LunchMoneySDK", "PersistenceService", "KeychainSDK"],
             path: "Sources/services/SyncService"
         ),
+        // Test Targets
+        .testTarget(
+            name: "SnapshotTests",
+            path: "Tests/SnapshotTests"
+        ),
     ]
 )
