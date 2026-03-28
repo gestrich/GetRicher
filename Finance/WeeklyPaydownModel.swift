@@ -73,6 +73,13 @@ struct PaydownDateRange {
     }
 }
 
+struct MatchedTransfer: Identifiable {
+    let id = UUID()
+    let transaction: PersistenceService.Transaction
+    let pattern: PersistenceService.TransferPattern
+    let sourceAccountName: String
+}
+
 struct TransferBreakdown: Identifiable {
     let id = UUID()
     let sourceAccountId: Int?
@@ -150,6 +157,38 @@ class WeeklyPaydownModel {
             periodTransactions: periodTransactions(accountId: accountId, from: transactions),
             postPeriodClearedTransactions: postPeriodClearedTransactions(accountId: accountId, from: transactions)
         )
+    }
+
+    func matchedTransfers(
+        accountId: Int,
+        periodTransactions: [PersistenceService.Transaction],
+        patterns: [PersistenceService.TransferPattern],
+        accounts: [PersistenceService.PlaidAccount]
+    ) -> [MatchedTransfer] {
+        let accountPatterns = patterns.filter { $0.targetAccountId == accountId }
+        guard !accountPatterns.isEmpty else { return [] }
+
+        // Credits have negative toBase
+        let credits = periodTransactions.filter { $0.toBase < 0 }
+        var matches: [MatchedTransfer] = []
+        for tx in credits {
+            for pattern in accountPatterns {
+                if tx.payee.localizedCaseInsensitiveContains(pattern.matchText) {
+                    let sourceName = accounts.first { $0.lunchMoneyId == pattern.sourceAccountId }?.displayName ?? "Unknown"
+                    matches.append(MatchedTransfer(transaction: tx, pattern: pattern, sourceAccountName: sourceName))
+                    break
+                }
+            }
+        }
+        return matches
+    }
+
+    func nonTransferTransactions(
+        periodTransactions: [PersistenceService.Transaction],
+        matchedTransfers: [MatchedTransfer]
+    ) -> [PersistenceService.Transaction] {
+        let transferIds = Set(matchedTransfers.map { $0.transaction.lunchMoneyId })
+        return periodTransactions.filter { !transferIds.contains($0.lunchMoneyId) }
     }
 
     func transferBreakdown(
