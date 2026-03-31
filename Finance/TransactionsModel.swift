@@ -4,20 +4,22 @@ import LunchMoneySDK
 import PersistenceService
 import SwiftData
 import SyncService
+import TransactionFeature
 
 @MainActor @Observable
 class TransactionsModel: Identifiable {
     let id = UUID()
     var syncState: SyncState = .idle
 
-    private let syncCoordinator: SyncCoordinator
+    private let syncUseCase: SyncTransactionsUseCase
 
-    init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol, pageSize: Int) {
-        self.syncCoordinator = SyncCoordinator(
+    init(lunchMoneyClient: any LunchMoneySDK.LunchMoneyClientProtocol, keychainClient: any KeychainSDK.KeychainClientProtocol, pageSize: Int) {
+        let syncCoordinator = SyncCoordinator(
             lunchMoneyClient: lunchMoneyClient,
             keychainClient: keychainClient,
             pageSize: pageSize
         )
+        self.syncUseCase = SyncTransactionsUseCase(syncCoordinator: syncCoordinator)
     }
 
     func sync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) {
@@ -34,13 +36,13 @@ class TransactionsModel: Identifiable {
 
     private func performSync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) async {
         do {
-            let results = try await syncCoordinator.sync(
+            let result = try await syncUseCase.run(
                 context: context,
                 accountId: accountId,
                 startDate: startDate,
                 endDate: endDate
             )
-            syncState = .synced(results.transactions)
+            syncState = .synced(result.transactions)
         } catch {
             syncState = .error(error.localizedDescription)
         }
