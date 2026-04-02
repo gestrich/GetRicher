@@ -1,0 +1,24 @@
+{
+  "originHash" : "0aaad0c38e20055f920e9fdb9a1ee03fd81d7e32a4b055c1d5845e76b31e5aa1",
+  "pins" : [
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
+        "version" : "1.7.1"
+      }
+    },
+    {
+      "identity" : "xcode-sim-automation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gestrich/xcode-sim-automation.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "c313a99d7e71ea7f1151872c3479f1828fac3438"
+      }
+    }
+  ],
+  "version" : 3
+}

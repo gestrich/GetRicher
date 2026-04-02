@@ -2,8 +2,7 @@
 build/
 DerivedData/
 *.xcuserstate
-*.xcworkspace
-!*.xcworkspace/contents.xcworkspacedata
+/*.xcworkspace
 xcuserdata/
 
 # Swift Package Manager
