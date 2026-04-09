@@ -30,7 +30,10 @@ The existing `CoreService` models (`Transaction`, `PlaidAccount`) will be replac
 
 ## Phases
 
-## - [ ] Phase 1: Create SwiftData models in PersistenceService
+## - [x] Phase 1: Create SwiftData models in PersistenceService
+
+**Skills used**: `swift-architecture`
+**Principles applied**: SwiftData `@Model` classes placed in Services layer (`PersistenceService`), `#Unique` constraints on `lunchMoneyId`, all fields match API DTOs. Also added `Category`, `Vendor`, `TransferRule`, `VendorSpending` models.
 
 **Skills to read**: `swift-architecture`
 
@@ -52,7 +55,10 @@ Create a new `PersistenceService` target in `FinancePackage` at `Sources/service
 - Keep all fields optional where the API returns optional
 - Add `Package.swift` target entry with no dependencies (pure SwiftData models)
 
-## - [ ] Phase 2: Create SyncService with diff-based sync logic
+## - [x] Phase 2: Create SyncService with diff-based sync logic
+
+**Skills used**: `swift-architecture`
+**Principles applied**: `TransactionSyncService` and `AccountSyncService` as stateless Sendable structs in Services layer. `SyncCoordinator` orchestrates both with pagination. Diff-based sync using `updatedAt` for transactions, field comparison for accounts.
 
 **Skills to read**: `swift-architecture`
 
@@ -73,7 +79,10 @@ Create a new `SyncService` target at `Sources/services/SyncService/` that depend
 
 **Mapping**: Simple static functions that convert `LunchMoneyTransaction` → `SDTransaction` field assignments (similar to current `TransactionMapper` but writing into `@Model` objects).
 
-## - [ ] Phase 3: Update TransactionFeature use cases
+## - [x] Phase 3: Update TransactionFeature use cases
+
+**Skills used**: `swift-architecture`
+**Principles applied**: Created `TransactionFeature` target in Features layer with `SyncTransactionsUseCase` and `AggregateVendorSpendingUseCase`. Use cases don't conform to `UseCase` protocol because SwiftData `ModelContext` and `@Model` types aren't `Sendable`. Updated `TransactionsModel` to use `SyncTransactionsUseCase` instead of directly calling `SyncCoordinator`.
 
 **Skills to read**: `swift-architecture`
 

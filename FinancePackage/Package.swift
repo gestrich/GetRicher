@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "SyncService", targets: ["SyncService"]),
         .library(name: "KeychainSDK", targets: ["KeychainSDK"]),
         .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
+        .library(name: "TransactionFeature", targets: ["TransactionFeature"]),
         .library(name: "Uniflow", targets: ["Uniflow"]),
     ],
     targets: [
@@ -40,6 +41,12 @@ let package = Package(
             name: "SyncService",
             dependencies: ["LunchMoneySDK", "PersistenceService", "KeychainSDK"],
             path: "Sources/services/SyncService"
+        ),
+        // Features Layer
+        .target(
+            name: "TransactionFeature",
+            dependencies: ["PersistenceService", "SyncService"],
+            path: "Sources/features/TransactionFeature"
         ),
     ]
 )
