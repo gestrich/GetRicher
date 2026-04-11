@@ -43,8 +43,13 @@ struct BudgetPeriod: Identifiable, Hashable {
 
         var result: [BudgetPeriod] = []
 
-        // Period 0: current (in-progress) — from mostRecentPivot to today
-        result.append(BudgetPeriod(start: mostRecentPivot, end: today))
+        // Period 0: current (in-progress) — from mostRecentPivot to today.
+        // When today is the pivot day, extend end to tomorrow so the API
+        // gets a valid range (end_date must be after start_date).
+        let currentEnd = mostRecentPivot == today
+            ? calendar.date(byAdding: .day, value: 1, to: today)!
+            : today
+        result.append(BudgetPeriod(start: mostRecentPivot, end: currentEnd))
 
         // Past periods: each is 7 days
         var periodEnd = calendar.date(byAdding: .day, value: -1, to: mostRecentPivot)!
