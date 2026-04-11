@@ -1,5 +1,6 @@
 import Foundation
 import KeychainSDK
+import LoggingSDK
 import LunchMoneySDK
 import PersistenceService
 import SwiftData
@@ -11,6 +12,7 @@ class TransactionsModel: Identifiable {
     var syncState: SyncState = .idle
 
     private let syncCoordinator: SyncCoordinator
+    private let logger = Logger(label: "GetRicher.TransactionsModel")
 
     init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol, pageSize: Int) {
         self.syncCoordinator = SyncCoordinator(
@@ -33,6 +35,7 @@ class TransactionsModel: Identifiable {
     }
 
     private func performSync(context: ModelContext, accountId: Int?, startDate: Date, endDate: Date) async {
+        logger.info("Starting sync (accountId: \(accountId.map(String.init) ?? "all"))")
         do {
             let results = try await syncCoordinator.sync(
                 context: context,
@@ -40,8 +43,15 @@ class TransactionsModel: Identifiable {
                 startDate: startDate,
                 endDate: endDate
             )
+            let count = results.transactions.inserted + results.transactions.updated
+            if count == 0 && !results.transactions.hasChanges {
+                logger.notice("Sync completed with no transactions — dashboard may show empty state")
+            } else {
+                logger.info("Sync completed: \(results.transactions.inserted) inserted, \(results.transactions.updated) updated")
+            }
             syncState = .synced(results.transactions)
         } catch {
+            logger.error("Sync failed: \(error.localizedDescription)")
             syncState = .error(error.localizedDescription)
         }
     }

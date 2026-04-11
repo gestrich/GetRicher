@@ -1,4 +1,5 @@
 import KeychainSDK
+import LoggingSDK
 import LunchMoneySDK
 import PersistenceService
 import SwiftData
@@ -9,11 +10,14 @@ struct FinanceApp: App {
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
+    @State private var logsModel = LogsModel()
     @State private var lastModeChangeCount: Int = 0
 
     let modelContainer: ModelContainer
 
     init() {
+        GetRicherLogging.bootstrap()
+
         let storedMode = UserDefaults.standard.object(forKey: "appMode") as? Int
         let appMode: AppMode
         if let storedMode, let mode = AppMode(rawValue: storedMode) {
@@ -56,6 +60,7 @@ struct FinanceApp: App {
                 .environment(transactionsModel)
                 .environment(settingsModel)
                 .environment(weeklyPaydownModel)
+                .environment(logsModel)
                 .modelContainer(modelContainer)
                 .task {
                     if settingsModel.isDemoMode {
