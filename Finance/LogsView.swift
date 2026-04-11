@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LogsView: View {
     @Environment(LogsModel.self) private var model
+    @State private var selectedEntry: LogEntry?
 
     var body: some View {
         @Bindable var model = model
@@ -86,6 +87,9 @@ struct LogsView: View {
         }
         .navigationTitle("Logs")
         .task { await model.load() }
+        .sheet(item: $selectedEntry) { entry in
+            LogEntryDetailView(entry: entry)
+        }
     }
 
     private var logList: some View {
@@ -93,6 +97,10 @@ struct LogsView: View {
             List(model.filteredItems) { item in
                 LogEntryRow(entry: item.entry)
                     .id(item.id)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedEntry = item.entry
+                    }
             }
             .listStyle(.plain)
             .onChange(of: model.items.count) { _, _ in
@@ -113,27 +121,89 @@ private struct LogEntryRow: View {
     let entry: LogEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            LevelBadge(level: entry.level)
-                .frame(width: 64, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                LevelBadge(level: entry.level)
                 Text(entry.label)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                Text(entry.message)
-                    .font(.body)
-                    .lineLimit(3)
+                Spacer()
+                Text(entry.timestamp.prefix(19).replacingOccurrences(of: "T", with: " "))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(entry.timestamp.prefix(19).replacingOccurrences(of: "T", with: " "))
-                .font(.caption2.monospaced())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            Text(entry.message)
+                .font(.subheadline)
+                .lineLimit(3)
+                .foregroundStyle(.primary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct LogEntryDetailView: View {
+    let entry: LogEntry
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    LabeledContent("Level") {
+                        LevelBadge(level: entry.level)
+                    }
+                    LabeledContent("Label") {
+                        Text(entry.label)
+                            .font(.body.monospaced())
+                    }
+                    LabeledContent("Time") {
+                        Text(entry.timestamp.replacingOccurrences(of: "T", with: " "))
+                            .font(.body.monospaced())
+                    }
+                    if let source = entry.source {
+                        LabeledContent("Source") {
+                            Text(source)
+                                .font(.body.monospaced())
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Message")
+                            .font(.headline)
+                        Text(entry.message)
+                            .font(.body)
+                            .textSelection(.enabled)
+                    }
+
+                    if let metadata = entry.metadata, !metadata.isEmpty {
+                        Divider()
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Metadata")
+                                .font(.headline)
+                            ForEach(metadata.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                                LabeledContent(key) {
+                                    Text(value)
+                                        .font(.body.monospaced())
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Log Entry")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

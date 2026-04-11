@@ -64,7 +64,9 @@ public struct FileLogHandler: LogHandler, Sendable {
     }
 }
 
-public struct LogEntry: Codable, Sendable {
+public struct LogEntry: Codable, Sendable, Identifiable {
+    public var id: String { "\(timestamp)-\(label)-\(message.prefix(50))" }
+
     public let timestamp: String
     public let level: String
     public let label: String
