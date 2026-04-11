@@ -6,8 +6,10 @@ public struct ClearLogsUseCase: UseCase {
     public init() {}
 
     public func run(options: Void) async throws {
-        guard let handle = try? FileHandle(forWritingTo: GetRicherLogging.defaultLogFileURL) else { return }
-        try? handle.truncate(atOffset: 0)
-        try? handle.close()
+        let url = GetRicherLogging.defaultLogFileURL
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: 0)
+        try handle.close()
     }
 }

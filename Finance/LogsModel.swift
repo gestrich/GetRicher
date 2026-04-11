@@ -65,10 +65,14 @@ final class LogsModel {
 
     func deleteLogs() {
         Task {
-            try? await clearLogsUseCase.run(options: ())
+            do {
+                try await clearLogsUseCase.run(options: ())
+                state = .streaming([])
+                nextID = 0
+            } catch {
+                state = .error(error)
+            }
         }
-        state = .streaming([])
-        nextID = 0
     }
 
     private func append(_ entries: [LogEntry]) {
