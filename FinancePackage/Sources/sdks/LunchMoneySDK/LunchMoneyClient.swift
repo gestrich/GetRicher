@@ -56,10 +56,16 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            throw LunchMoneyError.serverError(httpResponse.statusCode)
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+            throw LunchMoneyError.serverError(httpResponse.statusCode, body: body)
         }
 
-        return try JSONDecoder().decode(TransactionsResponseDTO.self, from: data)
+        do {
+            return try JSONDecoder().decode(TransactionsResponseDTO.self, from: data)
+        } catch {
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+            throw LunchMoneyError.decodingFailed(endpoint: "transactions", body: body, underlying: error)
+        }
     }
 
     public func fetchPlaidAccounts(token: String) async throws -> PlaidAccountsResponseDTO {
@@ -77,17 +83,37 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            throw LunchMoneyError.serverError(httpResponse.statusCode)
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+            throw LunchMoneyError.serverError(httpResponse.statusCode, body: body)
         }
 
-        return try JSONDecoder().decode(PlaidAccountsResponseDTO.self, from: data)
+        do {
+            return try JSONDecoder().decode(PlaidAccountsResponseDTO.self, from: data)
+        } catch {
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+            throw LunchMoneyError.decodingFailed(endpoint: "plaid_accounts", body: body, underlying: error)
+        }
     }
 }
 
-public enum LunchMoneyError: Error, Sendable {
+public enum LunchMoneyError: Error, Sendable, LocalizedError {
     case invalidURL
     case invalidResponse
-    case serverError(Int)
+    case serverError(Int, body: String)
+    case decodingFailed(endpoint: String, body: String, underlying: Error)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid URL"
+        case .invalidResponse:
+            return "Invalid response from server"
+        case .serverError(let code, let body):
+            return "Server error \(code): \(body.prefix(500))"
+        case .decodingFailed(let endpoint, let body, let underlying):
+            return "Failed to decode \(endpoint) response: \(underlying.localizedDescription)\nResponse body: \(body.prefix(1000))"
+        }
+    }
 }
 
 public struct TransactionsResponseDTO: Codable, Sendable {
