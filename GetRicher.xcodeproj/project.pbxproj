@@ -15,6 +15,8 @@
 		B0000001300000000000005 /* Uniflow in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000005 /* Uniflow */; };
 		B0000001300000000000006 /* PersistenceService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000006 /* PersistenceService */; };
 		B0000001300000000000007 /* SyncService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000007 /* SyncService */; };
+		B0000001300000000000008 /* LoggingSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000008 /* LoggingSDK */; };
+		B0000001300000000000009 /* LogsFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000009 /* LogsFeature */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +83,8 @@
 			files = (
 				B0000001300000000000001 /* CoreService in Frameworks */,
 				B0000001300000000000002 /* KeychainSDK in Frameworks */,
+				B0000001300000000000008 /* LoggingSDK in Frameworks */,
+				B0000001300000000000009 /* LogsFeature in Frameworks */,
 				B0000001300000000000003 /* LunchMoneySDK in Frameworks */,
 				B0000001300000000000006 /* PersistenceService in Frameworks */,
 				B0000001300000000000007 /* SyncService in Frameworks */,
@@ -189,6 +193,8 @@
 			packageProductDependencies = (
 				B0000002300000000000001 /* CoreService */,
 				B0000002300000000000002 /* KeychainSDK */,
+				B0000002300000000000008 /* LoggingSDK */,
+				B0000002300000000000009 /* LogsFeature */,
 				B0000002300000000000003 /* LunchMoneySDK */,
 				B0000002300000000000006 /* PersistenceService */,
 				B0000002300000000000007 /* SyncService */,
@@ -672,6 +678,14 @@
 		B0000002300000000000007 /* SyncService */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SyncService;
+		};
+		B0000002300000000000008 /* LoggingSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LoggingSDK;
+		};
+		B0000002300000000000009 /* LogsFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LogsFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

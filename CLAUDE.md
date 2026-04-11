@@ -76,6 +76,18 @@ xcrun xcresulttool export object --legacy \
 - **Before opening a PR** — run all UI tests to verify no visual regressions
 - Screenshots should be attached to PRs when UI changes are involved
 
+### Attaching Screenshots to PRs
+
+Screenshots go in the `screenshots/` directory at the repo root. To include them in a PR:
+
+1. Extract the screenshot from the `.xcresult` bundle (see above)
+2. Resize if needed: `sips -Z 800 /tmp/screenshot.png --out screenshots/my-feature.png`
+3. Save to `screenshots/` with a descriptive name
+4. Commit the screenshot with your branch
+5. Reference in the PR body using a relative path: `![Description](screenshots/my-feature.png)`
+
+This ensures screenshots are versioned with the code and visible directly in the PR on GitHub.
+
 ### Writing UI Tests
 
 Each test should:

@@ -1,5 +1,6 @@
 import Foundation
 import KeychainSDK
+import LoggingSDK
 
 enum AppMode: Int {
     case demo = 0
@@ -23,6 +24,7 @@ class SettingsModel {
     /// Incremented each time the mode changes; observers can use this to react.
     var modeChangeCount: Int = 0
 
+    private let logger = Logger(label: "GetRicher.SettingsModel")
     private(set) var keychainClient: any KeychainClientProtocol
 
     init(keychainClient: any KeychainClientProtocol) {
@@ -54,10 +56,12 @@ class SettingsModel {
         do {
             try keychainClient.saveAPIToken(token)
             state = .saved(token)
+            logger.info("API token saved")
             if appMode != .token {
                 appMode = .token
             }
         } catch {
+            logger.error("Failed to save API token: \(error.localizedDescription)")
             state = .error(error.localizedDescription)
         }
     }
@@ -65,8 +69,10 @@ class SettingsModel {
     func deleteToken() {
         do {
             try keychainClient.deleteAPIToken()
+            logger.info("API token deleted")
             state = .idle
         } catch {
+            logger.error("Failed to delete API token: \(error.localizedDescription)")
             state = .error(error.localizedDescription)
         }
     }

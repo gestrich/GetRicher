@@ -230,6 +230,22 @@ final class GetRicherUITests: XCTestCase {
         captureScreenshot(app, name: "CategoryList")
     }
 
+    // MARK: - Logs
+
+    @MainActor
+    func testLogsScreenshot() throws {
+        let app = launchApp()
+        navigateToSettings(app)
+
+        // Scroll down to find the Logs link in the Diagnostics section
+        let logsLink = app.staticTexts["Logs"]
+        XCTAssertTrue(logsLink.waitForExistence(timeout: 5), "Logs link should exist")
+        logsLink.tap()
+
+        sleep(1)
+        captureScreenshot(app, name: "LogsView")
+    }
+
     // MARK: - Vendor List
 
     @MainActor

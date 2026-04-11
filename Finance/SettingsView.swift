@@ -75,6 +75,12 @@ struct SettingsView: View {
                         VendorListView(accountId: nil)
                     }
                 }
+
+                Section("Diagnostics") {
+                    NavigationLink("Logs") {
+                        LogsView()
+                    }
+                }
             }
             .navigationTitle("Settings")
             .toolbar {
