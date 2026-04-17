@@ -71,6 +71,9 @@ struct SettingsView: View {
                     NavigationLink("Categories") {
                         CategoryListView()
                     }
+                    NavigationLink("Transfer Patterns") {
+                        TransferPatternListView(targetAccountId: nil)
+                    }
                     NavigationLink("Vendors") {
                         VendorListView(accountId: nil)
                     }

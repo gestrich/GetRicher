@@ -12,6 +12,7 @@ struct WeeklyPaydownView: View {
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @Query(sort: \PersistenceService.Vendor.name) var vendors: [PersistenceService.Vendor]
     @Query(sort: \PersistenceService.TransferRule.priority) var transferRules: [PersistenceService.TransferRule]
+    @Query(sort: \PersistenceService.TransferPattern.name) var transferPatterns: [PersistenceService.TransferPattern]
     @State private var vendorCreationTransaction: PersistenceService.Transaction?
     @AppStorage("paydownSelectedAccountId") private var selectedAccountId: Int = -1
 
@@ -21,8 +22,12 @@ struct WeeklyPaydownView: View {
 
     var body: some View {
         @Bindable var paydownModel = paydownModel
-        let periodTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: transactions)
+        let allPeriodTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: transactions)
         let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: accounts)
+        let matched = selectedAccountIdOrNil.map { acctId in
+            paydownModel.matchedTransfers(accountId: acctId, periodTransactions: allPeriodTx, patterns: transferPatterns, accounts: accounts)
+        } ?? []
+        let periodTx = paydownModel.nonTransferTransactions(periodTransactions: allPeriodTx, matchedTransfers: matched)
 
         NavigationStack {
             Group {
@@ -40,6 +45,7 @@ struct WeeklyPaydownView: View {
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
+                                transfersReceivedSection(matchedTransfers: matched)
                                 transferBreakdownSection(periodTransactions: periodTx)
                                 calculationBreakdownSection(periodTransactions: periodTx)
                                 vendorChart(periodTransactions: periodTx)
@@ -59,10 +65,19 @@ struct WeeklyPaydownView: View {
             .toolbar {
                 if selectedAccount != nil {
                     ToolbarItem(placement: .primaryAction) {
-                        NavigationLink {
-                            TransferRulesListView(targetAccountId: selectedAccountId)
+                        Menu {
+                            NavigationLink {
+                                TransferRulesListView(targetAccountId: selectedAccountId)
+                            } label: {
+                                Label("Transfer Rules", systemImage: "arrow.left.arrow.right")
+                            }
+                            NavigationLink {
+                                TransferPatternListView(targetAccountId: selectedAccountId)
+                            } label: {
+                                Label("Transfer Patterns", systemImage: "arrow.triangle.2.circlepath")
+                            }
                         } label: {
-                            Image(systemName: "arrow.left.arrow.right")
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                 }
@@ -137,6 +152,54 @@ struct WeeklyPaydownView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
+    }
+
+    private func transfersReceivedSection(matchedTransfers: [MatchedTransfer]) -> some View {
+        Group {
+            if !matchedTransfers.isEmpty {
+                VStack(spacing: 0) {
+                    Text("Transfers Received")
+                        .font(.headline)
+                        .padding(.bottom, 12)
+
+                    ForEach(matchedTransfers) { match in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(match.pattern.name)
+                                    .font(.body)
+                                Text("From: \(match.sourceAccountName)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(match.transaction.date)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(CurrencyFormatter.format(amount: abs(match.transaction.toBase), currency: "USD"))
+                                .font(.body.monospacedDigit())
+                                .foregroundStyle(.green)
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    HStack {
+                        Text("Total Received")
+                            .font(.title3.bold())
+                        Spacer()
+                        Text(CurrencyFormatter.format(amount: matchedTransfers.reduce(0) { $0 + abs($1.transaction.toBase) }, currency: "USD"))
+                            .font(.title3.bold())
+                            .foregroundStyle(.green)
+                    }
+                }
+                .padding()
+                .background(Color(.systemBackground))
+                .cornerRadius(12)
+                .padding(.horizontal)
+            }
+        }
     }
 
     private func transferBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
