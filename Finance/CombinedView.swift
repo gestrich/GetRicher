@@ -194,13 +194,21 @@ struct CombinedView: View {
                                 
                                 Button {
                                     transactionDaysToShow += 7
+                                    syncTransactionHistory()
                                 } label: {
-                                    Text("Load Earlier Transactions")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.blue)
-                                        .padding(.vertical, 8)
-                                        .frame(maxWidth: .infinity)
+                                    HStack {
+                                        if transactionsModel.isSyncing {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        }
+                                        Text("Load Earlier Transactions")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundStyle(.blue)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
                                 }
+                                .disabled(transactionsModel.isSyncing)
                                 .padding(.horizontal)
                             }
                             .padding()
@@ -240,23 +248,39 @@ struct CombinedView: View {
         selectedAccountId == -1 ? nil : selectedAccountId
     }
 
+    private var transactionHistoryStartDate: Date {
+        Calendar.current.date(byAdding: .day, value: -transactionDaysToShow, to: Date())!
+    }
+
     private func syncAllAccounts() {
         guard let period = selectedPeriod else { return }
+        // Sync the earlier of: budget period start or transaction history start
+        let earliestDate = min(period.start, transactionHistoryStartDate)
         transactionsModel.sync(
             context: modelContext,
             accountId: nil,
-            startDate: period.start,
-            endDate: period.end
+            startDate: earliestDate,
+            endDate: Date()
+        )
+    }
+
+    private func syncTransactionHistory() {
+        transactionsModel.sync(
+            context: modelContext,
+            accountId: nil,
+            startDate: transactionHistoryStartDate,
+            endDate: Date()
         )
     }
 
     private func syncDataAndWait() async {
         guard let period = selectedPeriod else { return }
+        let earliestDate = min(period.start, transactionHistoryStartDate)
         await transactionsModel.syncAndWait(
             context: modelContext,
             accountId: selectedAccountIdOrNil,
-            startDate: period.start,
-            endDate: period.end
+            startDate: earliestDate,
+            endDate: Date()
         )
     }
 }
