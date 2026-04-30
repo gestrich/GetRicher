@@ -260,4 +260,70 @@ final class GetRicherUITests: XCTestCase {
         sleep(1)
         captureScreenshot(app, name: "VendorList")
     }
+
+    // MARK: - Transfer Patterns (Phase 1)
+
+    @MainActor
+    func testTransferPatternsFromSettings() throws {
+        let app = launchApp()
+        navigateToSettings(app)
+
+        // Verify Transfer Patterns link exists in Settings
+        let patternsLink = app.staticTexts["Transfer Patterns"]
+        XCTAssertTrue(patternsLink.waitForExistence(timeout: 5), "Transfer Patterns link should exist in Settings")
+        patternsLink.tap()
+
+        sleep(1)
+        captureScreenshot(app, name: "TransferPatternList")
+    }
+
+    @MainActor
+    func testTransfersReceivedSection() throws {
+        let app = launchApp(tab: "Weekly Paydown")
+
+        // Select Amex Gold account to see transfer data
+        let accountPicker = app.buttons["Account, Select Account"]
+        if accountPicker.waitForExistence(timeout: 5) {
+            accountPicker.tap()
+            let amexOption = app.buttons["Amex Gold"]
+            if amexOption.waitForExistence(timeout: 5) {
+                amexOption.tap()
+            }
+        }
+
+        sleep(2)
+
+        // Scroll down to find Transfers Received section
+        var attempts = 0
+        let transfersHeader = app.staticTexts["Transfers Received"]
+        while !transfersHeader.exists && attempts < 10 {
+            app.swipeUp()
+            attempts += 1
+        }
+
+        captureScreenshot(app, name: "TransfersReceived")
+    }
+
+    @MainActor
+    func testWeeklyPaydownWithTransferPatterns() throws {
+        let app = launchApp(tab: "Weekly Paydown")
+
+        // Select Amex Gold account
+        let accountPicker = app.buttons["Account, Select Account"]
+        if accountPicker.waitForExistence(timeout: 5) {
+            accountPicker.tap()
+            let amexOption = app.buttons["Amex Gold"]
+            if amexOption.waitForExistence(timeout: 5) {
+                amexOption.tap()
+            }
+        }
+
+        sleep(2)
+        captureScreenshot(app, name: "WeeklyPaydownWithTransfers")
+
+        // Scroll to show full breakdown including transfers
+        app.swipeUp()
+        sleep(1)
+        captureScreenshot(app, name: "WeeklyPaydownTransferBreakdownFull")
+    }
 }

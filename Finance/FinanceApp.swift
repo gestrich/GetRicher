@@ -48,7 +48,7 @@ struct FinanceApp: App {
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
 
         do {
-            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferRule.self)
+            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferPattern.self, PersistenceService.TransferRule.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -133,6 +133,25 @@ struct FinanceApp: App {
             context.insert(rule)
         }
 
+        // Create transfer patterns for Amex Gold (targetAccountId: 2)
+        let checkingPayment = PersistenceService.TransferPattern(
+            name: "Checking Payment",
+            matchText: "ONLINE PAYMENT",
+            sourceAccountId: 1,
+            targetAccountId: 2
+        )
+
+        let savingsPayment = PersistenceService.TransferPattern(
+            name: "Savings Payment",
+            matchText: "MOBILE PAYMENT",
+            sourceAccountId: 3,
+            targetAccountId: 2
+        )
+
+        for pattern in [checkingPayment, savingsPayment] {
+            context.insert(pattern)
+        }
+
         try? context.save()
     }
 
@@ -144,6 +163,7 @@ struct FinanceApp: App {
             try context.delete(model: PersistenceService.Transaction.self)
             try context.delete(model: PersistenceService.PlaidAccount.self)
             try context.delete(model: PersistenceService.Tag.self)
+            try context.delete(model: PersistenceService.TransferPattern.self)
             try context.save()
         } catch {
             print("Failed to clear data: \(error)")

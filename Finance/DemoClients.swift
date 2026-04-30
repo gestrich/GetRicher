@@ -148,6 +148,71 @@ struct DemoLunchMoneyClient: LunchMoneyClientProtocol {
             }
         }
 
+        // Add transfer payment transactions (credits on the credit card)
+        let transferPayments: [(date: String, payee: String, amount: Double, sourceDesc: String)] = [
+            ("2026-03-14", "ONLINE PAYMENT - THANK YOU", 500.00, "Chase Checking"),
+            ("2026-03-07", "ONLINE PAYMENT - THANK YOU", 350.00, "Chase Checking"),
+            ("2026-02-28", "ONLINE PAYMENT - THANK YOU", 400.00, "Chase Checking"),
+            ("2026-03-10", "MOBILE PAYMENT - THANK YOU", 150.00, "Ally Savings"),
+            ("2026-02-24", "MOBILE PAYMENT - THANK YOU", 120.00, "Ally Savings"),
+        ]
+
+        for payment in transferPayments {
+            if let accountId, accountId != 2 { continue }
+            id += 1
+            transactions.append(TransactionDTO(
+                id: id,
+                date: payment.date,
+                payee: payment.payee,
+                amount: String(format: "-%.2f", payment.amount),
+                currency: "usd",
+                toBase: -payment.amount,
+                notes: "Payment received",
+                originalName: payment.payee,
+                categoryId: nil,
+                categoryName: nil,
+                categoryGroupId: nil,
+                categoryGroupName: nil,
+                status: "cleared",
+                isIncome: false,
+                isPending: false,
+                excludeFromBudget: false,
+                excludeFromTotals: false,
+                createdAt: nowTs,
+                updatedAt: nowTs,
+                recurringId: nil,
+                recurringPayee: nil,
+                recurringDescription: nil,
+                recurringCadence: nil,
+                recurringGranularity: nil,
+                recurringQuantity: nil,
+                recurringType: nil,
+                recurringAmount: nil,
+                recurringCurrency: nil,
+                parentId: nil,
+                hasChildren: false,
+                groupId: nil,
+                isGroup: false,
+                assetId: nil,
+                assetInstitutionName: nil,
+                assetName: nil,
+                assetDisplayName: nil,
+                assetStatus: nil,
+                plaidAccountId: 2,
+                plaidAccountName: nil,
+                plaidAccountMask: nil,
+                institutionName: nil,
+                plaidAccountDisplayName: "Amex Gold",
+                plaidMetadata: nil,
+                source: "plaid",
+                displayName: payment.payee,
+                displayNotes: nil,
+                accountDisplayName: "Amex Gold",
+                externalId: nil,
+                tags: nil
+            ))
+        }
+
         // Add a couple income transactions
         for date in ["2026-03-15", "2026-03-01", "2026-02-15", "2026-02-01"] {
             id += 1
