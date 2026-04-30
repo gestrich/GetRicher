@@ -60,6 +60,8 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
             throw LunchMoneyError.serverError(httpResponse.statusCode, body: body)
         }
 
+        try Self.checkForAPIError(data: data)
+
         do {
             return try JSONDecoder().decode(TransactionsResponseDTO.self, from: data)
         } catch {
@@ -87,6 +89,8 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
             throw LunchMoneyError.serverError(httpResponse.statusCode, body: body)
         }
 
+        try Self.checkForAPIError(data: data)
+
         do {
             return try JSONDecoder().decode(PlaidAccountsResponseDTO.self, from: data)
         } catch {
@@ -94,9 +98,21 @@ public struct LunchMoneyClient: LunchMoneyClientProtocol, Sendable {
             throw LunchMoneyError.decodingFailed(endpoint: "plaid_accounts", body: body, underlying: error)
         }
     }
+    /// Detects error responses returned with 200 status (Lunch Money API quirk).
+    private static func checkForAPIError(data: Data) throws {
+        if let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data),
+           let message = errorResponse.error {
+            throw LunchMoneyError.apiError(message)
+        }
+    }
+}
+
+private struct APIErrorResponse: Codable {
+    let error: String?
 }
 
 public enum LunchMoneyError: Error, Sendable, LocalizedError {
+    case apiError(String)
     case invalidURL
     case invalidResponse
     case serverError(Int, body: String)
@@ -104,6 +120,8 @@ public enum LunchMoneyError: Error, Sendable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .apiError(let message):
+            return "API error: \(message)"
         case .invalidURL:
             return "Invalid URL"
         case .invalidResponse:
