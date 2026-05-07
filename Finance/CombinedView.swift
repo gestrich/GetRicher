@@ -13,6 +13,7 @@ struct CombinedView: View {
     @State private var budgetPeriods: [BudgetPeriod] = BudgetPeriod.periods(count: 11, pivotDay: .saturday)
     @State private var selectedPeriod: BudgetPeriod? = BudgetPeriod.periods(count: 11, pivotDay: .saturday).first
     @State private var showSettings = false
+    @State private var transactionDaysToShow: Int = 7
 
     private var filteredTransactions: [PersistenceService.Transaction] {
         guard let period = selectedPeriod else { return [] }
@@ -24,6 +25,34 @@ struct CombinedView: View {
             let accountMatch = selectedAccountId == -1 || tx.plaidAccountId == selectedAccountId
             return dateMatch && accountMatch
         }
+    }
+    
+    private var recentTransactions: [PersistenceService.Transaction] {
+        let calendar = Calendar.current
+        let cutoffDate = calendar.date(byAdding: .day, value: -transactionDaysToShow, to: Date())!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let cutoffString = formatter.string(from: cutoffDate)
+        
+        return transactions.filter { tx in
+            let dateMatch = tx.date >= cutoffString
+            let accountMatch = selectedAccountId == -1 || tx.plaidAccountId == selectedAccountId
+            return dateMatch && accountMatch
+        }
+    }
+    
+    private var recentTransactionsDateRange: String {
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -transactionDaysToShow, to: endDate)!
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        
+        let startString = formatter.string(from: startDate)
+        let endString = formatter.string(from: endDate)
+        
+        return "(\(startString) – \(endString))"
     }
 
     private var selectedAccountBalance: String? {
@@ -150,11 +179,11 @@ struct CombinedView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Recent Transactions")
+                                Text("Transactions \(recentTransactionsDateRange)")
                                     .font(.headline)
                                     .padding(.horizontal)
 
-                                ForEach(filteredTransactions.prefix(50)) { transaction in
+                                ForEach(recentTransactions) { transaction in
                                     NavigationLink {
                                         TransactionDetailView(transaction: transaction)
                                     } label: {
@@ -162,6 +191,25 @@ struct CombinedView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
+                                
+                                Button {
+                                    transactionDaysToShow += 7
+                                    syncTransactionHistory()
+                                } label: {
+                                    HStack {
+                                        if transactionsModel.isSyncing {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        }
+                                        Text("Load Earlier Transactions")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundStyle(.blue)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .disabled(transactionsModel.isSyncing)
+                                .padding(.horizontal)
                             }
                             .padding()
                         }
@@ -190,6 +238,9 @@ struct CombinedView: View {
             .onChange(of: selectedPeriod) { _, _ in
                 syncAllAccounts()
             }
+            .onChange(of: selectedAccountId) { _, _ in
+                transactionDaysToShow = 7
+            }
         }
     }
 
@@ -197,23 +248,39 @@ struct CombinedView: View {
         selectedAccountId == -1 ? nil : selectedAccountId
     }
 
+    private var transactionHistoryStartDate: Date {
+        Calendar.current.date(byAdding: .day, value: -transactionDaysToShow, to: Date())!
+    }
+
     private func syncAllAccounts() {
         guard let period = selectedPeriod else { return }
+        // Sync the earlier of: budget period start or transaction history start
+        let earliestDate = min(period.start, transactionHistoryStartDate)
         transactionsModel.sync(
             context: modelContext,
             accountId: nil,
-            startDate: period.start,
-            endDate: period.end
+            startDate: earliestDate,
+            endDate: Date()
+        )
+    }
+
+    private func syncTransactionHistory() {
+        transactionsModel.sync(
+            context: modelContext,
+            accountId: nil,
+            startDate: transactionHistoryStartDate,
+            endDate: Date()
         )
     }
 
     private func syncDataAndWait() async {
         guard let period = selectedPeriod else { return }
+        let earliestDate = min(period.start, transactionHistoryStartDate)
         await transactionsModel.syncAndWait(
             context: modelContext,
             accountId: selectedAccountIdOrNil,
-            startDate: period.start,
-            endDate: period.end
+            startDate: earliestDate,
+            endDate: Date()
         )
     }
 }
