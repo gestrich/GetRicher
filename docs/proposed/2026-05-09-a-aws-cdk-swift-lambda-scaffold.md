@@ -111,9 +111,10 @@ cdk/cdk.out/
 - `swift build --product CLIApp` succeeds on macOS.
 - `cd cdk && npm install && npx cdk synth` succeeds (stack renders without errors).
 
-## - [ ] Phase 2: Local invocation via CLIApp
+## - [x] Phase 2: Local invocation via CLIApp
 
-**Skills to read**: `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: `InvokeCommand` added as `AsyncParsableCommand` subcommand; uses `Task { @MainActor in }` to call `@MainActor APIClient` from non-isolated async context; default port changed to 8080 because macOS ControlCenter occupies 7000 (AirPlay). Lambda must be started with `LOCAL_LAMBDA_SERVER_ENABLED=1 LOCAL_LAMBDA_HOST=0.0.0.0 LOCAL_LAMBDA_PORT=8080`; the `LOCAL_LAMBDA_HOST=0.0.0.0` binding is required so `localhost` resolves on both IPv4 and IPv6.
 
 Get the full local round-trip working so the hello-world Lambda handler can be exercised on macOS without deploying to AWS.
 

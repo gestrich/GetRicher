@@ -7,6 +7,6 @@ struct GetRicherCLI: AsyncParsableCommand {
         commandName: "get-richer",
         abstract: "CLI tool for GetRicher Lambda local development",
         version: "1.0.0",
-        subcommands: []
+        subcommands: [InvokeCommand.self]
     )
 }
