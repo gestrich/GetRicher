@@ -106,6 +106,16 @@ Each test should:
 
 When using `xcresulttool`, test IDs use the format: `GetRicherUITests/testMethodName()`
 
+## Deployment & Infrastructure
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment guide. Key things to know when touching Lambda, CDK, or GitHub Actions:
+
+- GitHub Actions needs `permissions: id-token: write` in the *calling* workflow for OIDC to pass through to a reusable workflow
+- Do not use `if: success()` on a job that has a `uses:` key — GitHub forbids it and fails with `startup_failure`
+- The `dev` GitHub environment must exist before the deploy workflow can run
+- `build.sh` extracts `Package.resolved` from the Linux Docker builder image — do not short-circuit this or the Linux build will hang
+- Any target importing `SwiftData`, `SwiftUI`, `UIKit`, or `AppKit` must be in a `#if os(macOS) || os(iOS)` block in `Package.swift`; `LambdaApp` and `ClientService` must be unconditional
+
 ## General Guidance
 
 - When in doubt about where to place new code, read `/swift-architecture` first
