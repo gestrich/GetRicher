@@ -122,7 +122,7 @@ Get the full local round-trip working so the hello-world Lambda handler can be e
 - Set `MOCK_AWS_CREDENTIALS=true` so `ServiceComposer` skips real AWS client init.
 - Verify: `swift run CLIApp invoke --route /hello` (or equivalent) prints the hello-world response to stdout.
 
-## - [ ] Phase 3: Deploy to AWS via CDK and verify end-to-end
+## - [x] Phase 3: Deploy to AWS via CDK and verify end-to-end
 
 **Skills to read**: `swift-app-architecture:swift-architecture`
 
