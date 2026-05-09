@@ -133,7 +133,7 @@ Get the scaffold Lambda live in AWS behind API Gateway. This is the first Linux 
 - GitHub Actions `deploy_dev.yml` triggers on push to `main`: runs `build.sh`, then `cdk deploy`.
 - Fix any `SwiftData` / `SwiftUI` / Apple-only imports that surface during the Linux build; use the platform compilation pattern (whole-target exclusion in `Package.swift`) rather than file-level `#if`.
 
-## - [ ] Phase 4: Validation
+## - [x] Phase 4: Validation
 
 End-to-end success criteria — both must pass:
 
