@@ -80,6 +80,17 @@ var targets: [Target] = [
         dependencies: ["LoggingSDK", "Uniflow"],
         path: "Sources/features/LogsFeature"
     ),
+    // Test Targets (unconditional — pure Linux-safe targets)
+    .testTarget(
+        name: "ReportingServiceTests",
+        dependencies: ["ReportingService", "FinanceCoreSDK"],
+        path: "Tests/ReportingServiceTests"
+    ),
+    .testTarget(
+        name: "LunchMoneySDKTests",
+        dependencies: ["LunchMoneySDK"],
+        path: "Tests/LunchMoneySDKTests"
+    ),
     // Apps Layer
     .executableTarget(
         name: "LambdaApp",

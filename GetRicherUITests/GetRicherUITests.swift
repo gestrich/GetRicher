@@ -246,6 +246,27 @@ final class GetRicherUITests: XCTestCase {
         captureScreenshot(app, name: "LogsView")
     }
 
+    // MARK: - Review Inbox
+
+    @MainActor
+    func testReviewInboxTabExists() throws {
+        let app = launchApp()
+        let inboxTab = app.tabBars.buttons["Inbox"]
+        XCTAssertTrue(inboxTab.waitForExistence(timeout: 5), "Inbox tab should exist")
+    }
+
+    @MainActor
+    func testReviewInboxScreenshot() throws {
+        let app = launchApp(tab: "Inbox")
+
+        // Wait for the navigation title regardless of whether items loaded
+        let navBar = app.navigationBars["Review Inbox"]
+        _ = navBar.waitForExistence(timeout: 5)
+
+        sleep(2)
+        captureScreenshot(app, name: "ReviewInbox")
+    }
+
     // MARK: - Vendor List
 
     @MainActor

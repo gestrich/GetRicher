@@ -154,7 +154,10 @@ iOS app gains a **Review Inbox** view that lists pending `ReviewItem`s, lets the
 
 EventBridge schedule + Lambda IAM is provisioned by extending the CDK stack (`cdk/lib/swift-lambda-stack.ts`) with an EventBridge rule and appropriate Lambda IAM permissions.
 
-## - [ ] Phase 8: Validation
+## - [x] Phase 8: Validation
+
+**Skills used**: `swift-testing`
+**Principles applied**: Created `ReportingServiceTests` (21 tests across 5 suites: BudgetPeriod, PaydownDateRange, PaydownCalculation, TransferBreakdown, AccountSummary) and `LunchMoneySDKTests` (10 tests across 5 suites: TransactionDTO, TransactionsResponseDTO, PlaidAccountDTO, PlaidAccountsResponseDTO, TagDTO) as unconditional test targets in Package.swift — both are Linux-safe and picked up by the existing GitHub Actions `swift test` job on Ubuntu. Added two Review Inbox UI tests (`testReviewInboxTabExists`, `testReviewInboxScreenshot`) to `GetRicherUITests`. All 31 unit tests pass via `swift test`. Test fixtures are deterministic (fixed date May 4 2026, static JSON strings — no network calls).
 
 **Skills to read**: `swift-testing`
 
