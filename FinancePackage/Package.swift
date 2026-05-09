@@ -11,9 +11,11 @@ var dependencies: [Package.Dependency] = [
 
 var products: [Product] = [
     .library(name: "CoreService", targets: ["CoreService"]),
+    .library(name: "FinanceCoreSDK", targets: ["FinanceCoreSDK"]),
     .library(name: "LoggingSDK", targets: ["LoggingSDK"]),
     .library(name: "LogsFeature", targets: ["LogsFeature"]),
     .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
+    .library(name: "ReportingService", targets: ["ReportingService"]),
     .library(name: "Uniflow", targets: ["Uniflow"]),
     .library(name: "ClientService", targets: ["ClientService"]),
     .executable(name: "LambdaApp", targets: ["LambdaApp"]),
@@ -21,6 +23,10 @@ var products: [Product] = [
 
 var targets: [Target] = [
     // SDKs Layer
+    .target(
+        name: "FinanceCoreSDK",
+        path: "Sources/sdks/FinanceCoreSDK"
+    ),
     .target(
         name: "LoggingSDK",
         dependencies: [
@@ -44,6 +50,11 @@ var targets: [Target] = [
     .target(
         name: "ClientService",
         path: "Sources/services/ClientService"
+    ),
+    .target(
+        name: "ReportingService",
+        dependencies: ["FinanceCoreSDK"],
+        path: "Sources/services/ReportingService"
     ),
     // Features Layer
     .target(
@@ -80,6 +91,7 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "PersistenceService",
+        dependencies: ["FinanceCoreSDK"],
         path: "Sources/services/PersistenceService"
     ),
     .target(

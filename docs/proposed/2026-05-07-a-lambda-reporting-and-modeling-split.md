@@ -84,9 +84,10 @@ Produce a short inventory table inside this doc (append a section) listing each 
 
 No code changes in this phase — just the inventory.
 
-## - [ ] Phase 3: Extract pure domain & API layer (Linux-safe)
+## - [x] Phase 3: Extract pure domain & API layer (Linux-safe)
 
-**Skills to read**: `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Created `FinanceCoreSDK` (SDKs layer) with plain Swift structs for all six domain types (Transaction, Account, Category, Tag, Vendor, TransferRule, VendorSpending). Created `ReportingService` (Services layer, depends on FinanceCoreSDK) with pure algorithmic types (PivotDay, BudgetPeriod, PaydownCalculation, PaydownDateRange, TransferBreakdown) extracted from the app-layer models. Added `DomainMappings.swift` to PersistenceService giving every `@Model` type `toDomain()` and `init(from:)` methods; FinanceCoreSDK is listed as a PersistenceService dependency so mappings compile without touching existing @Model files. Both new targets are unconditional in Package.swift (Linux-buildable); PersistenceService stays inside the `#if os(macOS) || os(iOS)` block. `swift build --target FinanceCoreSDK`, `swift build --target ReportingService`, `swift build` (full package), and `xcodebuild` (iOS app) all succeed with no errors.
 
 Restructure `FinancePackage` so the pure layer compiles on Linux:
 
