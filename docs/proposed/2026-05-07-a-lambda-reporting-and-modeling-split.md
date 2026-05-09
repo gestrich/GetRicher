@@ -69,9 +69,10 @@ See standalone plan: [`2026-05-09-a-aws-cdk-swift-lambda-scaffold.md`](2026-05-0
 
 This phase is complete when GitHub Actions can deploy the Lambda to AWS and a `curl` to the API Gateway URL returns a hello-world response. No GetRicher domain logic is required.
 
-## - [ ] Phase 2: Inventory & boundary mapping
+## - [x] Phase 2: Inventory & boundary mapping
 
-**Skills to read**: `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Read all targets in Package.swift and sampled every source file to classify platform safety. Confirmed that SwiftData `@Model` types are already isolated in `PersistenceService`; `LunchMoneySDK` is already import-clean. The key gap for Phase 3 is that plain-struct equivalents of the six `@Model` types do not yet exist — they must be introduced in a new `FinanceCoreSDK` (or `DomainModels`) target so Lambda and `ReportingService` can share them without pulling in SwiftData.
 
 Audit the current `FinancePackage` and `Finance/` app target to classify every type/service into one of:
 
@@ -160,3 +161,102 @@ Layered validation, preferring automated:
 - **Lambda local invocation**: run `CLIApp` against real Lunch Money + a sandbox AWS account (Secrets Manager + DynamoDB + SNS Mobile Push) end-to-end; verify a push lands on a test device.
 - **iOS UI tests**: existing `GetRicherUITests` continue to pass; add a new test for the Review Inbox screen with a screenshot per the project's UI-test convention (see `CLAUDE.md`).
 - **Manual smoke**: push to `main`, let GitHub Actions deploy, verify the EventBridge-triggered run produces a notification + `ReviewItem`, confirm the iOS app surfaces it.
+
+---
+
+## Phase 2 Inventory: File Classification
+
+### FinancePackage — SDKs Layer
+
+| File | Target | Classification | Notes |
+|------|--------|----------------|-------|
+| `Sources/sdks/LoggingSDK/GetRicherLogging.swift` | LoggingSDK | **Pure** | Foundation + swift-log only |
+| `Sources/sdks/LoggingSDK/FileLogHandler.swift` | LoggingSDK | **Pure** | Foundation + swift-log only |
+| `Sources/sdks/LoggingSDK/LogReaderService.swift` | LoggingSDK | **Pure** | Foundation only |
+| `Sources/sdks/LoggingSDK/LogFileWatcher.swift` | LoggingSDK | **Darwin-only** | `#if canImport(Darwin)` guard already present |
+| `Sources/sdks/LunchMoneySDK/LunchMoneyClient.swift` | LunchMoneySDK | **Pure** | Foundation only; defines `LunchMoneyClientProtocol`, `LunchMoneyClient`, `TransactionDTO`, `PlaidAccountDTO`, `TagDTO` |
+| `Sources/sdks/KeychainSDK/KeychainClient.swift` | KeychainSDK | **Apple-only** | Security framework |
+| `Sources/sdks/Uniflow/UseCase.swift` | Uniflow | **Pure** | Foundation only |
+
+### FinancePackage — Services Layer
+
+| File | Target | Classification | Notes |
+|------|--------|----------------|-------|
+| `Sources/services/CoreService/CurrencyFormatter.swift` | CoreService | **Pure** | Foundation only |
+| `Sources/services/PersistenceService/Transaction.swift` | PersistenceService | **SwiftData-bound** | `@Model final class Transaction` — 48 properties |
+| `Sources/services/PersistenceService/Category.swift` | PersistenceService | **SwiftData-bound** | `@Model final class Category` |
+| `Sources/services/PersistenceService/PlaidAccount.swift` | PersistenceService | **SwiftData-bound** | `@Model final class PlaidAccount` |
+| `Sources/services/PersistenceService/Tag.swift` | PersistenceService | **SwiftData-bound** | `@Model final class Tag` |
+| `Sources/services/PersistenceService/Vendor.swift` | PersistenceService | **SwiftData-bound** | `@Model final class Vendor` |
+| `Sources/services/PersistenceService/TransferRule.swift` | PersistenceService | **SwiftData-bound** | `@Model final class TransferRule` |
+| `Sources/services/PersistenceService/VendorSpending.swift` | PersistenceService | **Pure** | Plain `struct VendorSpending` — no SwiftData; could move to `FinanceCoreSDK` |
+| `Sources/services/SyncService/SyncCoordinator.swift` | SyncService | **SwiftData-bound** | Imports SwiftData + PersistenceService |
+| `Sources/services/SyncService/AccountSyncService.swift` | SyncService | **SwiftData-bound** | Imports SwiftData + PersistenceService |
+| `Sources/services/SyncService/TransactionSyncService.swift` | SyncService | **SwiftData-bound** | Imports SwiftData + PersistenceService |
+| `Sources/services/SyncService/SyncResult.swift` | SyncService | **Pure** | Plain `struct SyncResult` — no SwiftData |
+| `Sources/services/ClientService/APIClient.swift` | ClientService | **Pure** | Conditional `FoundationNetworking` on Linux |
+| `Sources/services/ClientService/APIGatewayRequestWrapper.swift` | ClientService | **Pure** | Foundation only |
+| `Sources/services/ClientService/APIGatewayResponseWrapper.swift` | ClientService | **Pure** | Foundation only |
+
+### FinancePackage — Features Layer
+
+| File | Target | Classification | Notes |
+|------|--------|----------------|-------|
+| `Sources/features/LogsFeature/usecases/StreamLogsUseCase.swift` | LogsFeature | **Pure** | LoggingSDK + Uniflow only |
+| `Sources/features/LogsFeature/usecases/ClearLogsUseCase.swift` | LogsFeature | **Pure** | LoggingSDK + Uniflow only |
+
+### FinancePackage — Apps Layer
+
+| File | Target | Classification | Notes |
+|------|--------|----------------|-------|
+| `Sources/apps/LambdaApp/GetRicherLambda.swift` | LambdaApp | **Pure** | AWSLambdaRuntime + Foundation; cross-platform |
+| `Sources/apps/CLIApp/main.swift` | CLIApp | **Apple-only** | Wrapped in `#if os(macOS) || os(iOS)` |
+| `Sources/apps/CLIApp/Commands/InvokeCommand.swift` | CLIApp | **Apple-only** | Wrapped in `#if os(macOS) || os(iOS)` |
+
+### Finance/ — iOS/macOS App Target
+
+| File | Classification | Notes |
+|------|----------------|-------|
+| `FinanceApp.swift` | **SwiftData-bound + SwiftUI-bound** | App entry point; creates `ModelContainer` |
+| `ContentView.swift` | **SwiftUI-bound** | TabView shell |
+| `CombinedView.swift` | **SwiftData-bound + SwiftUI-bound** | `@Query` transactions/accounts; Charts |
+| `WeeklyPaydownView.swift` | **SwiftData-bound + SwiftUI-bound** | `WeeklyPaydownModel`; Charts |
+| `TransactionsModel.swift` | **SwiftData-bound + SwiftUI-bound** | `@Observable`; algorithm logic that should move to `ReportingService` |
+| `AccountsModel.swift` | **SwiftUI-bound** | `@Observable`; currently empty |
+| `SettingsModel.swift` | **SwiftUI-bound** | `@Observable`; KeychainSDK only |
+| `WeeklyPaydownModel.swift` | **SwiftData-bound + SwiftUI-bound** | `@Observable`; derivation logic should move to `ReportingService` |
+| `LogsModel.swift` | **SwiftUI-bound** | `@Observable`; LoggingSDK + LogsFeature only |
+| `SettingsView.swift` | **SwiftUI-bound** | |
+| `LogsView.swift` | **SwiftUI-bound** | |
+| `LogItem.swift` | **Pure** | Plain `struct`; no SwiftUI/SwiftData |
+| `TransactionsListView.swift` | **SwiftData-bound + SwiftUI-bound** | `@Query` |
+| `TransactionDetailView.swift` | **SwiftData-bound + SwiftUI-bound** | PersistenceService `@Model` types |
+| `TransactionContextMenu.swift` | **SwiftData-bound + SwiftUI-bound** | |
+| `CategoryListView.swift` | **SwiftData-bound + SwiftUI-bound** | `@Query` |
+| `CategoryEditView.swift` | **SwiftData-bound + SwiftUI-bound** | |
+| `VendorListView.swift` | **SwiftData-bound + SwiftUI-bound** | `@Query` |
+| `VendorEditView.swift` | **SwiftData-bound + SwiftUI-bound** | |
+| `VendorSpendingView.swift` | **SwiftData-bound + SwiftUI-bound** | Charts |
+| `TransferRulesListView.swift` | **SwiftData-bound + SwiftUI-bound** | `@Query` |
+| `TransferRuleEditView.swift` | **SwiftData-bound + SwiftUI-bound** | |
+| `FilteredTransactionListView.swift` | **SwiftData-bound + SwiftUI-bound** | |
+| `DateFilter.swift` | **SwiftUI-bound** | |
+| `DemoClients.swift` | **Pure** | Implements `KeychainClientProtocol`, `LunchMoneyClientProtocol`; no SwiftData/SwiftUI |
+
+---
+
+### Marshaling Boundary (SwiftData → Pure Struct)
+
+These are the `@Model` types that need plain-struct counterparts in `FinanceCoreSDK` for Phase 3:
+
+| SwiftData `@Model` (PersistenceService) | Target pure struct (FinanceCoreSDK) | Already exists? |
+|-----------------------------------------|--------------------------------------|-----------------|
+| `Transaction` | `Transaction` (plain struct) | No — `TransactionDTO` in LunchMoneySDK is the API shape, not the domain model |
+| `PlaidAccount` | `Account` (plain struct) | No — `PlaidAccountDTO` in LunchMoneySDK is the API shape |
+| `Category` | `Category` (plain struct) | No |
+| `Tag` | `Tag` (plain struct) | No — `TagDTO` in LunchMoneySDK is the API shape |
+| `Vendor` | `Vendor` (plain struct) | No |
+| `TransferRule` | `TransferRule` (plain struct) | No |
+| `VendorSpending` | `VendorSpending` (plain struct) | **Yes** — already a plain struct in PersistenceService; move to FinanceCoreSDK |
+
+**Note**: `LunchMoneySDK` already has `TransactionDTO`, `PlaidAccountDTO`, and `TagDTO` as API-layer DTOs. The new pure structs in `FinanceCoreSDK` will be the canonical domain models; `LunchMoneySDK` maps DTOs → domain; `PersistenceService` maps domain ↔ `@Model`.
