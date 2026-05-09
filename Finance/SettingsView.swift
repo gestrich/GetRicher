@@ -67,6 +67,17 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    TextField("https://...", text: $settings.backendURL)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Text("Backend")
+                } footer: {
+                    Text("API Gateway URL for push notification device token registration.")
+                }
+
                 Section("Management") {
                     NavigationLink("Categories") {
                         CategoryListView()

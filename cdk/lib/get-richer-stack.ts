@@ -35,7 +35,8 @@ export class GetRicherStack extends Stack {
       dynamoDbTable: dynamoDb.table,
       memorySize: config.lambda.memorySize,
       timeout: config.lambda.timeout,
-      reservedConcurrentExecutions: config.lambda.reservedConcurrentExecutions
+      reservedConcurrentExecutions: config.lambda.reservedConcurrentExecutions,
+      snsPlatformArn: this.node.tryGetContext('snsPlatformArn') ?? ''
     });
 
     const apiGateway = new ApiGatewayConstruct(this, 'ApiGateway', {

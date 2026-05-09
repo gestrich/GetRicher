@@ -19,6 +19,7 @@ export interface LambdaConstructProps {
   memorySize: number;
   timeout: number;
   reservedConcurrentExecutions?: number;
+  snsPlatformArn?: string;
 }
 
 export class LambdaConstruct extends Construct {
@@ -45,7 +46,8 @@ export class LambdaConstruct extends Construct {
       environment: {
         SQS_URL: props.queue.queueUrl,
         S3_BUCKET_NAME: props.dataBucket.bucketName,
-        DYNAMODB_TABLE_NAME: props.dynamoDbTable.tableName
+        DYNAMODB_TABLE_NAME: props.dynamoDbTable.tableName,
+        SNS_PLATFORM_ARN: props.snsPlatformArn ?? ''
       }
     });
 
@@ -53,12 +55,9 @@ export class LambdaConstruct extends Construct {
     props.queue.grantSendMessages(this.function);
     props.dynamoDbTable.grantReadWriteData(this.function);
 
-    // Grant Secrets Manager read access for any secrets this Lambda may need
-    const secretsPolicy = new secretsmanager.Secret(this, 'PlaceholderSecret', {
-      secretName: 'get-richer/placeholder',
-      removalPolicy: RemovalPolicy.DESTROY
-    });
-    secretsPolicy.grantRead(this.function);
+    // Grant read access to the LUNCH_MONEY_TOKEN secret (created manually outside CDK)
+    const lunchMoneySecret = secretsmanager.Secret.fromSecretNameV2(this, 'LunchMoneySecret', 'LUNCH_MONEY_TOKEN');
+    lunchMoneySecret.grantRead(this.function);
 
     this.function.configureAsyncInvoke({
       maxEventAge: Duration.minutes(30),

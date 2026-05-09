@@ -24,6 +24,10 @@ class SettingsModel {
     /// Incremented each time the mode changes; observers can use this to react.
     var modeChangeCount: Int = 0
 
+    var backendURL: String = UserDefaults.standard.string(forKey: "backendURL") ?? "" {
+        didSet { UserDefaults.standard.set(backendURL, forKey: "backendURL") }
+    }
+
     private let logger = Logger(label: "GetRicher.SettingsModel")
     private(set) var keychainClient: any KeychainClientProtocol
 
