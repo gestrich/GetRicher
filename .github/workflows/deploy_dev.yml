@@ -9,7 +9,6 @@ on:
 jobs:
   deploy:
     name: Dev Deploy
-    if: success()
     uses: ./.github/workflows/deploy.yml
     with:
       awsRegion: us-east-1
