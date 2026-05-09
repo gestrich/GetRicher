@@ -16,6 +16,7 @@ var products: [Product] = [
     .library(name: "LogsFeature", targets: ["LogsFeature"]),
     .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
     .library(name: "ReportingService", targets: ["ReportingService"]),
+    .library(name: "SecretsService", targets: ["SecretsService"]),
     .library(name: "Uniflow", targets: ["Uniflow"]),
     .library(name: "ClientService", targets: ["ClientService"]),
     .executable(name: "LambdaApp", targets: ["LambdaApp"]),
@@ -56,6 +57,13 @@ var targets: [Target] = [
         dependencies: ["FinanceCoreSDK"],
         path: "Sources/services/ReportingService"
     ),
+    .target(
+        name: "SecretsService",
+        dependencies: [
+            .product(name: "SotoSecretsManager", package: "soto"),
+        ],
+        path: "Sources/services/SecretsService"
+    ),
     // Features Layer
     .target(
         name: "LogsFeature",
@@ -69,6 +77,10 @@ var targets: [Target] = [
             .product(name: "AWSLambdaRuntime", package: "swift-aws-lambda-runtime"),
             .product(name: "AWSLambdaEvents", package: "swift-aws-lambda-events"),
             .target(name: "ClientService"),
+            .target(name: "FinanceCoreSDK"),
+            .target(name: "LunchMoneySDK"),
+            .target(name: "ReportingService"),
+            .target(name: "SecretsService"),
         ],
         path: "Sources/apps/LambdaApp"
     ),

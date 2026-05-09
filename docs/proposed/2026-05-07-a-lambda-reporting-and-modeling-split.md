@@ -112,9 +112,10 @@ Rewire the iOS/macOS app so SwiftData is purely a cache + reactive store:
 - All algorithm logic that currently lives in app-level view models or SwiftData-backed services moves into `ReportingService`.
 - App still runs end-to-end identically from the user's perspective; this phase is a structural refactor, not a behavior change.
 
-## - [ ] Phase 5: Wire Lambda to FinanceCoreSDK + ReportingService
+## - [x] Phase 5: Wire Lambda to FinanceCoreSDK + ReportingService
 
-**Skills to read**: `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-architecture` (skill unavailable in this environment; conventions applied from prior phases and code review)
+**Principles applied**: Created `SecretsService` (Services layer, unconditional/Linux-safe) with `SecretsClientProtocol`, `AWSSecretsClient` (Soto `SotoSecretsManager`), and `EnvironmentSecretsClient` (env var fallback for local dev). Added `AccountSummary` to `ReportingService` as the simple derivation type. Updated `LambdaApp` to depend on `FinanceCoreSDK`, `LunchMoneySDK`, `ReportingService`, `SecretsService`. Replaced hello-world handler with real handler that selects secrets client based on `LUNCH_MONEY_TOKEN` env var presence (local dev vs. AWS production), fetches accounts via `LunchMoneySDK`, and returns a balance snapshot via `AccountSummary`. `swift build --product LambdaApp`, `swift build`, and `xcodebuild` all succeed with no errors.
 
 Connect the deployed scaffold Lambda to the real domain layer:
 
