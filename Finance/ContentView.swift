@@ -16,6 +16,9 @@ struct ContentView: View {
                 Tab("Weekly Paydown", systemImage: "creditcard.fill", value: "paydown") {
                     WeeklyPaydownView()
                 }
+                Tab("Inbox", systemImage: "tray.and.arrow.down.fill", value: "inbox") {
+                    ReviewInboxView()
+                }
             }
         }
     }

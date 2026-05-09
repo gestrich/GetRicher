@@ -56,6 +56,7 @@ var targets: [Target] = [
     .target(
         name: "NotificationService",
         dependencies: [
+            .target(name: "FinanceCoreSDK"),
             .product(name: "SotoDynamoDB", package: "soto"),
             .product(name: "SotoSNS", package: "soto"),
         ],

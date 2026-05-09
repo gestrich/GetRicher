@@ -14,6 +14,7 @@ struct FinanceApp: App {
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
     @State private var logsModel = LogsModel()
     @State private var notificationsModel = NotificationsModel()
+    @State private var reviewInboxModel = ReviewInboxModel()
     @State private var lastModeChangeCount: Int = 0
 
     let modelContainer: ModelContainer
@@ -65,6 +66,7 @@ struct FinanceApp: App {
                 .environment(weeklyPaydownModel)
                 .environment(logsModel)
                 .environment(notificationsModel)
+                .environment(reviewInboxModel)
                 .modelContainer(modelContainer)
                 .task {
                     if settingsModel.isDemoMode {

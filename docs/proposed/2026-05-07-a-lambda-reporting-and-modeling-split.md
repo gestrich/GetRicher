@@ -137,9 +137,10 @@ Wire up the notification path end-to-end:
 - Stub a simple "low balance alert" Lambda handler in `LambdaApp` that reads a configured threshold, fetches balance via Lunch Money, and pushes a notification if under threshold.
 - iOS app: handle inbound notification tap → deep link to the relevant view.
 
-## - [ ] Phase 7: Scheduled reports + approval-item flow
+## - [x] Phase 7: Scheduled reports + approval-item flow
 
-**Skills to read**: `swift-app-architecture:swift-swiftui`, `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-swiftui`, `swift-app-architecture:swift-architecture` (both unavailable in this environment; conventions applied from prior phases and CLAUDE.md)
+**Principles applied**: Added `ReviewItem` (with `Kind` and `Status` enums) to `FinanceCoreSDK` as a pure Linux-safe Codable/Sendable type. Added `ReviewItemStoreProtocol`, `DynamoDBReviewItemStore`, and `LoggingReviewItemStore` to `NotificationService` (added `FinanceCoreSDK` dependency). Introduced a `LambdaDispatchEvent` union decoder in `LambdaApp` that peeks at the `httpMethod` field to distinguish API Gateway requests from EventBridge scheduled events — API Gateway path routes to existing + new handlers (`GET /api/review-items`, `POST /api/review-items/resolve`, `POST /api/generate-report`); scheduled path runs `handleGenerateReport` directly. CDK `lambda-construct.ts` gains a weekly EventBridge rule (Sundays 08:00 UTC) targeting the Lambda. iOS app gains `ReviewInboxModel` (`@Observable @MainActor`, fetches/resolves items via backend URL) and `ReviewInboxView` (swipe-to-approve/dismiss list); "Inbox" tab added to `ContentView`; `reviewInboxModel` injected into environment in `FinanceApp`. Deep-link routing for notification taps to "inbox" tab works via existing `NotificationCenter`/`@AppStorage("selectedTab")` mechanism. `swift build --product LambdaApp`, `swift build`, and `xcodebuild` all succeed with no errors.
 
 Build out the report features end-to-end. For each report below, the Lambda runs on EventBridge schedule, computes via `ReportingService`, persists the result as a structured "ReviewItem" record (DynamoDB), and pushes a notification linking the user to approve/dismiss it in the iOS app:
 

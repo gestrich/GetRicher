@@ -7,6 +7,8 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 import * as path from 'path';
 
@@ -72,5 +74,13 @@ export class LambdaConstruct extends Construct {
       ],
       resources: ['*'],
     }));
+
+    // Weekly scheduled report: every Sunday at 8:00 AM UTC
+    const weeklyReportRule = new events.Rule(this, 'WeeklyReportRule', {
+      schedule: events.Schedule.cron({ minute: '0', hour: '8', weekDay: 'SUN' }),
+      description: 'Weekly account snapshot and review item generation',
+      enabled: true
+    });
+    weeklyReportRule.addTarget(new targets.LambdaFunction(this.function));
   }
 }
