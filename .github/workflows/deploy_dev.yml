@@ -1,0 +1,20 @@
+name: Dev Deploy
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  deploy:
+    name: Dev Deploy
+    if: success()
+    uses: ./.github/workflows/deploy.yml
+    with:
+      awsRegion: us-east-1
+      environment: dev
+      dockerPlatformName: linux/amd64
+      productName: LambdaApp
+      lambdaName: get-richer
+    secrets: inherit

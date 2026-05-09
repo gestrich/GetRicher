@@ -1,0 +1,62 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      awsRegion:
+        description: 'AWS Region'
+        type: string
+        required: true
+      environment:
+        description: 'Environment to deploy against'
+        type: string
+        required: true
+      dockerPlatformName:
+        description: 'Docker Platform Name (linux/amd64, linux/arm64, etc)'
+        type: string
+        required: true
+      productName:
+        description: 'Product Name to build'
+        type: string
+        required: true
+      lambdaName:
+        description: 'Lambda Name to deploy'
+        type: string
+        required: true
+jobs:
+  deploy:
+    if: true
+    name: Deploy
+    environment:
+      name: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    env:
+      SWIFT_PACKAGE_MANAGER_PAT: ${{ secrets.SWIFT_PACKAGE_MANAGER_PAT }}
+      DOCKER_PLATFORM_NAME: ${{ inputs.dockerPlatformName }}
+      PRODUCT_NAME: ${{ inputs.productName }}
+      LAMBDA_NAME: ${{ inputs.lambdaName }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+    permissions:
+      contents: write
+      id-token: write
+      repository-projects: read
+    steps:
+    - uses: actions/checkout@v3
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        role-session-name: LambdaRoleSession
+        aws-region: ${{ inputs.awsRegion }}
+    - name: Build
+      run: |
+        ./build.sh "${PRODUCT_NAME}" "${DOCKER_PLATFORM_NAME}" "${SWIFT_PACKAGE_MANAGER_PAT}"
+    - name: Deploy to AWS
+      run: |
+        aws lambda update-function-code --function-name $LAMBDA_NAME --zip-file fileb://lambda.zip
+    - name: Upload Lambda Github Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: lambda
+        path: lambda
+        retention-days: 5

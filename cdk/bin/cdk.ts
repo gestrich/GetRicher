@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+import * as cdk from 'aws-cdk-lib';
+import { GetRicherStack } from '../lib/get-richer-stack';
+import { devConfig } from '../lib/config/dev';
+
+const app = new cdk.App();
+
+new GetRicherStack(app, 'GetRicherStack', {
+  config: devConfig,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
+  },
+  description: 'GetRicher Lambda infrastructure'
+});

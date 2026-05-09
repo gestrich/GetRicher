@@ -14,3 +14,11 @@ Packages/
 
 # CocoaPods
 Pods/
+
+# AWS / CDK
+aws-config.json
+.env
+cdk/cdk.out/
+lambda.zip
+lambda/
+.aws-sam/
