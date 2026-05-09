@@ -60,7 +60,10 @@ Some duplication is expected and acceptable: Lunch Money entities (Transaction, 
 
 ## Phases
 
-## - [ ] Phase 1: AWS CDK + Swift Lambda scaffold
+## - [x] Phase 1: AWS CDK + Swift Lambda scaffold
+
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Copied scaffold from `swift-lambda-sample` reference repo; applied platform compilation pattern (wholesale `#if os(macOS) || os(iOS)` block exclusion in `Package.swift`) so Apple-only targets are excluded on Linux; `LambdaApp` and `ClientService` are unconditional and build everywhere. CDK stack trimmed to remove VPC/NAT/RDS; GitHub Actions `deploy_dev.yml` uses OIDC for keyless AWS auth. All four sub-phases (scaffold copy, local CLIApp invocation, CDK deploy, end-to-end validation) completed; `swift build --product LambdaApp` passes on macOS and the deployed API Gateway endpoint returns a hello-world response.
 
 See standalone plan: [`2026-05-09-a-aws-cdk-swift-lambda-scaffold.md`](2026-05-09-a-aws-cdk-swift-lambda-scaffold.md)
 
