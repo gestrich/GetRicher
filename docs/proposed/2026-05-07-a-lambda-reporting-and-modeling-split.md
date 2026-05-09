@@ -125,9 +125,10 @@ Connect the deployed scaffold Lambda to the real domain layer:
 - Update `ConfigurationService` to load secrets via `SecretsService`.
 - Verify via CLIApp locally, then deploy and hit the real endpoint.
 
-## - [ ] Phase 6: Push notifications + device-token storage
+## - [x] Phase 6: Push notifications + device-token storage
 
-**Skills to read**: `swift-app-architecture:swift-architecture`, `swift-app-architecture:swift-swiftui`
+**Skills used**: `swift-app-architecture:swift-architecture`, `swift-app-architecture:swift-swiftui`
+**Principles applied**: Created `NotificationService` (Services layer, unconditional/Linux-safe) with `DeviceToken`, `NotificationPayload`, `DeviceTokenStoreProtocol` + `DynamoDBDeviceTokenStore` (Soto DynamoDB), `PushNotificationClientProtocol` + `SNSPushNotificationClient` (Soto SNS), and `LoggingPushNotificationClient` stub for local dev. Updated `LambdaApp` to route `POST /api/device-tokens` (store token in DynamoDB) and `GET /api/low-balance-check` (fetch accounts, push alerts if below threshold). iOS app gained `AppDelegate` (via `@UIApplicationDelegateAdaptor`) for APNs callbacks, `NotificationsModel` (`@Observable @MainActor`, Apps layer) to manage registration state and POST tokens to the backend URL (configured via `UserDefaults["backendURL"]`), and deep-link handling via `NotificationCenter` + `@AppStorage("selectedTab")`. CDK `lambda-construct.ts` updated with SNS publish/endpoint permissions. `SNS_PLATFORM_ARN` env var gates real SNS vs logging stub. `swift build --product LambdaApp`, `swift build`, and `xcodebuild` all succeed with no errors.
 
 Wire up the notification path end-to-end:
 

@@ -7,10 +7,13 @@ import SwiftUI
 
 @main
 struct FinanceApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
     @State private var logsModel = LogsModel()
+    @State private var notificationsModel = NotificationsModel()
     @State private var lastModeChangeCount: Int = 0
 
     let modelContainer: ModelContainer
@@ -61,19 +64,35 @@ struct FinanceApp: App {
                 .environment(settingsModel)
                 .environment(weeklyPaydownModel)
                 .environment(logsModel)
+                .environment(notificationsModel)
                 .modelContainer(modelContainer)
                 .task {
                     if settingsModel.isDemoMode {
                         seedDemoVendorsAndRules()
                     }
+                    await notificationsModel.requestPermissionAndRegister()
                 }
                 .onChange(of: settingsModel.modeChangeCount) { _, newCount in
                     guard newCount != lastModeChangeCount else { return }
                     lastModeChangeCount = newCount
                     handleModeChange()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .apnsTokenReceived)) { notification in
+                    guard let tokenData = notification.userInfo?["token"] as? Data else { return }
+                    Task { await notificationsModel.handleDeviceToken(tokenData) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .apnsTokenFailed)) { notification in
+                    guard let error = notification.userInfo?["error"] as? Error else { return }
+                    notificationsModel.handleRegistrationError(error)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .notificationDeepLink)) { notification in
+                    guard let deepLink = notification.userInfo?["deepLink"] as? String else { return }
+                    selectedTab = deepLink
+                }
         }
     }
+
+    @AppStorage("selectedTab") private var selectedTab: String = "dashboard"
 
     @MainActor
     private func seedDemoVendorsAndRules() {

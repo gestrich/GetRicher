@@ -5,6 +5,8 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 import * as path from 'path';
 
@@ -60,5 +62,15 @@ export class LambdaConstruct extends Construct {
       maxEventAge: Duration.minutes(30),
       retryAttempts: 1
     });
+
+    // Grant SNS permissions for mobile push notifications
+    this.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'sns:CreatePlatformEndpoint',
+        'sns:Publish',
+        'sns:ListEndpointsByPlatformApplication',
+      ],
+      resources: ['*'],
+    }));
   }
 }

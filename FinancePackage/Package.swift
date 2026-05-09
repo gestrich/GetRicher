@@ -15,6 +15,7 @@ var products: [Product] = [
     .library(name: "LoggingSDK", targets: ["LoggingSDK"]),
     .library(name: "LogsFeature", targets: ["LogsFeature"]),
     .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
+    .library(name: "NotificationService", targets: ["NotificationService"]),
     .library(name: "ReportingService", targets: ["ReportingService"]),
     .library(name: "SecretsService", targets: ["SecretsService"]),
     .library(name: "Uniflow", targets: ["Uniflow"]),
@@ -53,6 +54,14 @@ var targets: [Target] = [
         path: "Sources/services/ClientService"
     ),
     .target(
+        name: "NotificationService",
+        dependencies: [
+            .product(name: "SotoDynamoDB", package: "soto"),
+            .product(name: "SotoSNS", package: "soto"),
+        ],
+        path: "Sources/services/NotificationService"
+    ),
+    .target(
         name: "ReportingService",
         dependencies: ["FinanceCoreSDK"],
         path: "Sources/services/ReportingService"
@@ -79,6 +88,7 @@ var targets: [Target] = [
             .target(name: "ClientService"),
             .target(name: "FinanceCoreSDK"),
             .target(name: "LunchMoneySDK"),
+            .target(name: "NotificationService"),
             .target(name: "ReportingService"),
             .target(name: "SecretsService"),
         ],
