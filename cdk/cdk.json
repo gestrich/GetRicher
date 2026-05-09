@@ -17,6 +17,7 @@
     ]
   },
   "context": {
+    "snsPlatformArn": "arn:aws:sns:us-east-1:767387487465:app/APNS_SANDBOX/GetRicherIOS-Sandbox",
     "@aws-cdk/aws-signer:signingProfileNamePassedToCfn": true,
     "@aws-cdk/aws-ecs-patterns:secGroupsDisablesImplicitOpenListener": true,
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
