@@ -7,6 +7,7 @@ import { DynamoDBConstruct } from './constructs/dynamodb-construct';
 import { LambdaConstruct } from './constructs/lambda-construct';
 import { ApiGatewayConstruct } from './constructs/api-gateway-construct';
 import { MonitoringConstruct } from './constructs/monitoring-construct';
+import { GitHubActionsConstruct } from './constructs/github-actions-construct';
 
 export interface GetRicherStackProps extends StackProps {
   config: GetRicherConfig;
@@ -41,6 +42,8 @@ export class GetRicherStack extends Stack {
       lambdaFunction: lambdaFunc.function
     });
 
+    const githubActions = new GitHubActionsConstruct(this, 'GitHubActions');
+
     new MonitoringConstruct(this, 'Monitoring', {
       lambdaFunction: lambdaFunc.function,
       scheduleExpression: config.monitoring.scheduleExpression,
@@ -74,6 +77,10 @@ export class GetRicherStack extends Stack {
     new CfnOutput(this, 'ApiGatewayUrl', {
       value: apiGateway.api.url,
       description: 'API Gateway URL'
+    });
+    new CfnOutput(this, 'GitHubActionsRoleArn', {
+      value: githubActions.deployRoleArn,
+      description: 'IAM Role ARN for GitHub Actions — set as AWS_ROLE_ARN secret in the repo'
     });
   }
 }
