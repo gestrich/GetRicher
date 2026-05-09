@@ -6,6 +6,11 @@ on:
       - "main"
   workflow_call:
   workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  repository-projects: read
+
 jobs:
   deploy:
     name: Dev Deploy
