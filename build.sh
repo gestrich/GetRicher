@@ -85,10 +85,15 @@ fi
 # Compile application
 echo "Compiling application..."
 
-# Build the resolved-file mount argument conditionally
+# Use the Linux-generated Package.resolved from the builder image.
+# The macOS Package.resolved includes macOS-only packages (e.g. swift-argument-parser)
+# that don't exist in the Linux build graph, causing spurious fetches on Linux.
+echo "Extracting Linux Package.resolved from builder image..."
+LINUX_RESOLVED_FILE=$(mktemp /tmp/Package.resolved.XXXXXX)
+docker run --platform $PLATFORM_NAME --rm builder cat /stage/Package.resolved > "$LINUX_RESOLVED_FILE" 2>/dev/null || true
 RESOLVED_MOUNT=""
-if [ -f "$(pwd)/FinancePackage/Package.resolved" ]; then
-    RESOLVED_MOUNT="-v $(pwd)/FinancePackage/Package.resolved:/build-src/Package.resolved:ro"
+if [ -s "$LINUX_RESOLVED_FILE" ]; then
+    RESOLVED_MOUNT="-v $LINUX_RESOLVED_FILE:/build-src/Package.resolved:ro"
 fi
 
 docker run --platform $PLATFORM_NAME --rm \
