@@ -1,6 +1,8 @@
 import Charts
 import CoreService
+import FinanceCoreSDK
 import PersistenceService
+import ReportingService
 import SwiftData
 import SwiftUI
 
@@ -26,32 +28,32 @@ struct CombinedView: View {
             return dateMatch && accountMatch
         }
     }
-    
+
     private var recentTransactions: [PersistenceService.Transaction] {
         let calendar = Calendar.current
         let cutoffDate = calendar.date(byAdding: .day, value: -transactionDaysToShow, to: Date())!
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let cutoffString = formatter.string(from: cutoffDate)
-        
+
         return transactions.filter { tx in
             let dateMatch = tx.date >= cutoffString
             let accountMatch = selectedAccountId == -1 || tx.plaidAccountId == selectedAccountId
             return dateMatch && accountMatch
         }
     }
-    
+
     private var recentTransactionsDateRange: String {
         let calendar = Calendar.current
         let endDate = Date()
         let startDate = calendar.date(byAdding: .day, value: -transactionDaysToShow, to: endDate)!
-        
+
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
-        
+
         let startString = formatter.string(from: startDate)
         let endString = formatter.string(from: endDate)
-        
+
         return "(\(startString) – \(endString))"
     }
 
@@ -93,7 +95,8 @@ struct CombinedView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
+                            let domainFiltered = filteredTransactions.map { $0.toDomain() }
+                            let vendorSpending = VendorSpending.aggregate(from: domainFiltered)
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             VStack(spacing: 12) {
@@ -191,7 +194,7 @@ struct CombinedView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
-                                
+
                                 Button {
                                     transactionDaysToShow += 7
                                     syncTransactionHistory()
@@ -254,7 +257,6 @@ struct CombinedView: View {
 
     private func syncAllAccounts() {
         guard let period = selectedPeriod else { return }
-        // Sync the earlier of: budget period start or transaction history start
         let earliestDate = min(period.start, transactionHistoryStartDate)
         transactionsModel.sync(
             context: modelContext,

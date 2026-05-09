@@ -98,9 +98,10 @@ Restructure `FinancePackage` so the pure layer compiles on Linux:
 - Update existing `PersistenceService` / SwiftData `@Model` types to *contain* or *map to* the new pure structs rather than being the source of truth. The `@Model` types stay in a SwiftData-only target (`PersistenceService`) and gain `init(from: PureStruct)` / `toDomain() -> PureStruct` methods.
 - Verify `swift build --target FinanceCoreSDK` succeeds on macOS; Linux CI (from Phase 1) confirms it stays clean there too.
 
-## - [ ] Phase 4: Refactor app to use pure layer through SwiftData cache
+## - [x] Phase 4: Refactor app to use pure layer through SwiftData cache
 
-**Skills to read**: `swift-app-architecture:swift-swiftui`, `swift-app-architecture:swift-architecture`
+**Skills used**: `swift-app-architecture:swift-swiftui`, `swift-app-architecture:swift-architecture`
+**Principles applied**: Removed local duplicate domain types (`PivotDay`, `PaydownCalculation`, `PaydownDateRange`, `TransferBreakdown`, `BudgetPeriod`) from app-layer files; `WeeklyPaydownModel` now imports only `ReportingService` and `FinanceCoreSDK` with all method signatures accepting pure domain types. Views continue using `@Query` for reactive SwiftData lists (for detail navigation), while converting to domain types at the boundary before passing to model computation methods (`toDomain()` marked `public` in `DomainMappings.swift`). Removed `PersistenceService.VendorSpending` (duplicate of `FinanceCoreSDK.VendorSpending`). Added `FinanceCoreSDK` and `ReportingService` as explicit framework dependencies to the Xcode project. `xcodebuild` passes with no errors.
 
 Rewire the iOS/macOS app so SwiftData is purely a cache + reactive store:
 

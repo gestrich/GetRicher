@@ -1,6 +1,8 @@
 import Charts
 import CoreService
+import FinanceCoreSDK
 import PersistenceService
+import ReportingService
 import SwiftData
 import SwiftUI
 
@@ -21,8 +23,30 @@ struct WeeklyPaydownView: View {
 
     var body: some View {
         @Bindable var paydownModel = paydownModel
-        let periodTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: transactions)
-        let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: accounts)
+
+        // Domain types for model computation
+        let domainTransactions = transactions.map { $0.toDomain() }
+        let domainAccounts = accounts.map { $0.toDomain() }
+        let domainVendors = vendors.map { $0.toDomain() }
+        let domainRules = transferRules.map { $0.toDomain() }
+
+        // Domain period transactions for charts and calculations
+        let periodDomainTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: domainTransactions)
+        let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: domainAccounts)
+
+        // SwiftData period transactions for list display with detail navigation
+        let range = paydownModel.dateRange
+        let periodTx = transactions.filter { tx in
+            let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
+            let dateMatch = tx.date > range.start && tx.date <= range.end
+            return accountMatch && dateMatch && !tx.isIncome
+        }
+        let postPeriodTx = transactions.filter { tx in
+            let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
+            let isAfterPeriod = tx.date > range.end
+            let isPosted = !tx.isPending
+            return accountMatch && isAfterPeriod && isPosted && !tx.isIncome
+        }
 
         NavigationStack {
             Group {
@@ -40,9 +64,22 @@ struct WeeklyPaydownView: View {
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
-                                transferBreakdownSection(periodTransactions: periodTx)
-                                calculationBreakdownSection(periodTransactions: periodTx)
-                                vendorChart(periodTransactions: periodTx)
+                                transferBreakdownSection(
+                                    periodDomainTransactions: periodDomainTx,
+                                    domainVendors: domainVendors,
+                                    domainRules: domainRules,
+                                    domainAccounts: domainAccounts
+                                )
+                                calculationBreakdownSection(
+                                    periodDomainTransactions: periodDomainTx,
+                                    periodTransactions: periodTx,
+                                    postPeriodTransactions: postPeriodTx,
+                                    domainAccounts: domainAccounts,
+                                    domainVendors: domainVendors,
+                                    domainRules: domainRules,
+                                    domainTransactions: domainTransactions
+                                )
+                                vendorChart(periodDomainTransactions: periodDomainTx)
                                 transactionList(periodTransactions: periodTx)
                             } else {
                                 ContentUnavailableView(
@@ -57,7 +94,7 @@ struct WeeklyPaydownView: View {
             }
             .navigationTitle("Weekly Paydown")
             .toolbar {
-                if selectedAccount != nil {
+                if paydownModel.account(id: selectedAccountIdOrNil, from: accounts.map { $0.toDomain() }) != nil {
                     ToolbarItem(placement: .primaryAction) {
                         NavigationLink {
                             TransferRulesListView(targetAccountId: selectedAccountId)
@@ -139,14 +176,19 @@ struct WeeklyPaydownView: View {
         .padding(.horizontal)
     }
 
-    private func transferBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
-        let accountRules = transferRules.filter { $0.targetAccountId == selectedAccountId }
+    private func transferBreakdownSection(
+        periodDomainTransactions: [FinanceCoreSDK.Transaction],
+        domainVendors: [FinanceCoreSDK.Vendor],
+        domainRules: [FinanceCoreSDK.TransferRule],
+        domainAccounts: [FinanceCoreSDK.Account]
+    ) -> some View {
+        let accountRules = domainRules.filter { $0.targetAccountId == selectedAccountId }
         let breakdown = paydownModel.transferBreakdown(
             accountId: selectedAccountId,
-            periodTransactions: periodTransactions,
-            vendors: vendors,
-            rules: transferRules,
-            accounts: accounts
+            periodTransactions: periodDomainTransactions,
+            vendors: domainVendors,
+            rules: domainRules,
+            accounts: domainAccounts
         )
 
         return Group {
@@ -192,27 +234,34 @@ struct WeeklyPaydownView: View {
         }
     }
 
-    private func calculationBreakdownSection(periodTransactions: [PersistenceService.Transaction]) -> some View {
-        let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: accounts, transactions: transactions)
+    private func calculationBreakdownSection(
+        periodDomainTransactions: [FinanceCoreSDK.Transaction],
+        periodTransactions: [PersistenceService.Transaction],
+        postPeriodTransactions: [PersistenceService.Transaction],
+        domainAccounts: [FinanceCoreSDK.Account],
+        domainVendors: [FinanceCoreSDK.Vendor],
+        domainRules: [FinanceCoreSDK.TransferRule],
+        domainTransactions: [FinanceCoreSDK.Transaction]
+    ) -> some View {
+        let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: domainAccounts, transactions: domainTransactions)
         let breakdown = paydownModel.transferBreakdown(
             accountId: selectedAccountId,
-            periodTransactions: periodTransactions,
-            vendors: vendors,
-            rules: transferRules,
-            accounts: accounts
+            periodTransactions: periodDomainTransactions,
+            vendors: domainVendors,
+            rules: domainRules,
+            accounts: domainAccounts
         )
         let transferTotal = breakdown.reduce(0.0) { $0 + $1.amount }
         let hasTransfers = !breakdown.isEmpty
         let finalAmount = calc.adjustedSpending - transferTotal
+
+        // Sub-filter SwiftData transactions for list navigation
         let debitTransactions = periodTransactions.filter { $0.toBase >= 0 }
         let creditTransactions = periodTransactions.filter { $0.toBase < 0 }
         let debitTotal = debitTransactions.reduce(0.0) { $0 + abs($1.toBase) }
         let creditTotal = creditTransactions.reduce(0.0) { $0 + abs($1.toBase) }
         let pendingTransactions = periodTransactions.filter { $0.isPending }
         let postedInPeriod = periodTransactions.filter { !$0.isPending }
-        let pendingTotal = pendingTransactions.reduce(0.0) { $0 + abs($1.toBase) }
-        let postedInPeriodTotal = postedInPeriod.reduce(0.0) { $0 + abs($1.toBase) }
-        let postPeriodTransactions = paydownModel.postPeriodClearedTransactions(accountId: selectedAccountIdOrNil, from: transactions)
 
         return VStack(spacing: 0) {
             Text("Paydown Calculation")
@@ -372,8 +421,8 @@ struct WeeklyPaydownView: View {
         .accessibilityIdentifier("PaydownCalculation")
     }
 
-    private func vendorChart(periodTransactions: [PersistenceService.Transaction]) -> some View {
-        let vendorSpending = VendorSpending.aggregate(from: periodTransactions)
+    private func vendorChart(periodDomainTransactions: [FinanceCoreSDK.Transaction]) -> some View {
+        let vendorSpending = VendorSpending.aggregate(from: periodDomainTransactions)
         let topVendors = Array(vendorSpending.prefix(8))
 
         return Group {

@@ -17,6 +17,8 @@
 		B0000001300000000000007 /* SyncService in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000007 /* SyncService */; };
 		B0000001300000000000008 /* LoggingSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000008 /* LoggingSDK */; };
 		B0000001300000000000009 /* LogsFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B0000002300000000000009 /* LogsFeature */; };
+		B000000130000000000000A /* FinanceCoreSDK in Frameworks */ = {isa = PBXBuildFile; productRef = B000000230000000000000A /* FinanceCoreSDK */; };
+		B000000130000000000000B /* ReportingService in Frameworks */ = {isa = PBXBuildFile; productRef = B000000230000000000000B /* ReportingService */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -89,6 +91,8 @@
 				B0000001300000000000006 /* PersistenceService in Frameworks */,
 				B0000001300000000000007 /* SyncService in Frameworks */,
 				B0000001300000000000005 /* Uniflow in Frameworks */,
+				B000000130000000000000A /* FinanceCoreSDK in Frameworks */,
+				B000000130000000000000B /* ReportingService in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +203,8 @@
 				B0000002300000000000006 /* PersistenceService */,
 				B0000002300000000000007 /* SyncService */,
 				B0000002300000000000005 /* Uniflow */,
+				B000000230000000000000A /* FinanceCoreSDK */,
+				B000000230000000000000B /* ReportingService */,
 			);
 			productName = Finance;
 			productReference = A995B8DC2F18604A00855692 /* GetRicher.app */;
@@ -686,6 +692,14 @@
 		B0000002300000000000009 /* LogsFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LogsFeature;
+		};
+		B000000230000000000000A /* FinanceCoreSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FinanceCoreSDK;
+		};
+		B000000230000000000000B /* ReportingService */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ReportingService;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -4,7 +4,7 @@ import SwiftData
 
 extension Transaction {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.Transaction {
+    public func toDomain() -> FinanceCoreSDK.Transaction {
         FinanceCoreSDK.Transaction(
             lunchMoneyId: lunchMoneyId,
             date: date,
@@ -115,14 +115,14 @@ extension Transaction {
 
 extension Tag {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.Tag {
+    public func toDomain() -> FinanceCoreSDK.Tag {
         FinanceCoreSDK.Tag(lunchMoneyId: lunchMoneyId, name: name)
     }
 }
 
 extension PlaidAccount {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.Account {
+    public func toDomain() -> FinanceCoreSDK.Account {
         FinanceCoreSDK.Account(
             lunchMoneyId: lunchMoneyId,
             name: name,
@@ -155,7 +155,7 @@ extension PlaidAccount {
 
 extension Category {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.Category {
+    public func toDomain() -> FinanceCoreSDK.Category {
         FinanceCoreSDK.Category(
             id: id,
             name: name,
@@ -178,7 +178,7 @@ extension Category {
 
 extension Vendor {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.Vendor {
+    public func toDomain() -> FinanceCoreSDK.Vendor {
         FinanceCoreSDK.Vendor(
             id: id,
             name: name,
@@ -202,7 +202,7 @@ extension Vendor {
 
 extension TransferRule {
     @MainActor
-    func toDomain() -> FinanceCoreSDK.TransferRule {
+    public func toDomain() -> FinanceCoreSDK.TransferRule {
         FinanceCoreSDK.TransferRule(
             id: id,
             name: name,

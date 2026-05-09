@@ -1,5 +1,6 @@
 import Charts
 import CoreService
+import FinanceCoreSDK
 import PersistenceService
 import SwiftData
 import SwiftUI
@@ -48,7 +49,7 @@ struct VendorSpendingView: View {
                     ScrollView {
                         VStack(spacing: 20) {
                             let filteredTransactions = filterTransactions(transactions)
-                            let vendorSpending = VendorSpending.aggregate(from: filteredTransactions)
+                            let vendorSpending = VendorSpending.aggregate(from: filteredTransactions.map { $0.toDomain() })
                             let topVendors = Array(vendorSpending.prefix(10))
 
                             Picker("Account", selection: $selectedAccount) {
