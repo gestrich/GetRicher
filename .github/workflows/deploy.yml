@@ -19,10 +19,6 @@ on:
         description: 'Product Name to build'
         type: string
         required: true
-      lambdaName:
-        description: 'Lambda Name to deploy'
-        type: string
-        required: true
 jobs:
   deploy:
     if: true
@@ -34,7 +30,6 @@ jobs:
       SWIFT_PACKAGE_MANAGER_PAT: ${{ secrets.SWIFT_PACKAGE_MANAGER_PAT }}
       DOCKER_PLATFORM_NAME: ${{ inputs.dockerPlatformName }}
       PRODUCT_NAME: ${{ inputs.productName }}
-      LAMBDA_NAME: ${{ inputs.lambdaName }}
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
     permissions:
       contents: write
@@ -51,9 +46,17 @@ jobs:
     - name: Build
       run: |
         ./build.sh "${PRODUCT_NAME}" "${DOCKER_PLATFORM_NAME}" "${SWIFT_PACKAGE_MANAGER_PAT}"
-    - name: Deploy to AWS
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: cdk/package-lock.json
+    - name: Deploy CDK Stack
       run: |
-        aws lambda update-function-code --function-name $LAMBDA_NAME --zip-file fileb://lambda.zip
+        cd cdk
+        npm ci
+        npx cdk deploy --require-approval never
     - name: Upload Lambda Github Artifact
       uses: actions/upload-artifact@v4
       with:

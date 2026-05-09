@@ -16,5 +16,4 @@ jobs:
       environment: dev
       dockerPlatformName: linux/amd64
       productName: LambdaApp
-      lambdaName: get-richer
     secrets: inherit
