@@ -21,7 +21,6 @@ var products: [Product] = [
     .library(name: "Uniflow", targets: ["Uniflow"]),
     .library(name: "ClientService", targets: ["ClientService"]),
     .executable(name: "LambdaApp", targets: ["LambdaApp"]),
-    .executable(name: "DynamoDBDiag", targets: ["DynamoDBDiag"]),
 ]
 
 var targets: [Target] = [
@@ -93,13 +92,6 @@ var targets: [Target] = [
         path: "Tests/LunchMoneySDKTests"
     ),
     // Apps Layer
-    .executableTarget(
-        name: "DynamoDBDiag",
-        dependencies: [
-            .product(name: "SotoDynamoDB", package: "soto"),
-        ],
-        path: "Sources/apps/DynamoDBDiag"
-    ),
     .executableTarget(
         name: "LambdaApp",
         dependencies: [

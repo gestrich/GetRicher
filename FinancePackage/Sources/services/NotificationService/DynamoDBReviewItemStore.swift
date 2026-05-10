@@ -12,19 +12,25 @@ public struct DynamoDBReviewItemStore: ReviewItemStoreProtocol {
     }
 
     public func store(_ item: ReviewItem) async throws {
-        var attributes: [String: DynamoDB.AttributeValue] = [
-            "id": .s(item.id),
-            "recordType": .s("reviewItem"),
-            "kind": .s(item.kind.rawValue),
-            "title": .s(item.title),
-            "summary": .s(item.summary),
-            "itemStatus": .s(item.status.rawValue),
-            "createdAt": .s(item.createdAt)
+        var expressionAttributeValues: [String: DynamoDB.AttributeValue] = [
+            ":recordType": .s("reviewItem"),
+            ":kind": .s(item.kind.rawValue),
+            ":title": .s(item.title),
+            ":summary": .s(item.summary),
+            ":itemStatus": .s(item.status.rawValue),
+            ":createdAt": .s(item.createdAt)
         ]
+        var updateExpression = "SET recordType = :recordType, kind = :kind, title = :title, summary = :summary, itemStatus = :itemStatus, createdAt = :createdAt"
         if let resolvedAt = item.resolvedAt {
-            attributes["resolvedAt"] = .s(resolvedAt)
+            expressionAttributeValues[":resolvedAt"] = .s(resolvedAt)
+            updateExpression += ", resolvedAt = :resolvedAt"
         }
-        _ = try await db.putItem(.init(item: attributes, tableName: tableName))
+        _ = try await db.updateItem(.init(
+            expressionAttributeValues: expressionAttributeValues,
+            key: ["id": .s(item.id)],
+            tableName: tableName,
+            updateExpression: updateExpression
+        ))
     }
 
     public func fetchPending() async throws -> [ReviewItem] {

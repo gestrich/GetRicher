@@ -115,7 +115,10 @@ If this also fails with `Type mismatch`, the bug is purely in Soto's local encod
 
 Also try the alternative fix candidates here (e.g., swap `[String: AttributeValue]` for a `Codable` struct + `DynamoDBEncoder`) to confirm the fix before touching production code.
 
-## - [ ] Phase 3: Apply the confirmed fix to both stores
+## - [x] Phase 3: Apply the confirmed fix to both stores
+
+**Skills used**: none
+**Principles applied**: Applied FC-B — replaced `putItem` with `updateItem` in both stores. This mirrors the already-working `resolve()` pattern in `DynamoDBReviewItemStore`, where `updateItem` with `key: ["id": .s(id)]` succeeds. The `putItem` code path is the only one that triggers the `Type mismatch for key id expected: S actual: M` error; `updateItem` uses a separate `key:` parameter (not embedded in the `item:` dict) and is proven to work. Removed the `DynamoDBDiag` target and its source directory as it was diagnostic-only.
 
 Based on Phase 1 + 2 findings, apply the winning fix candidate to:
 - `FinancePackage/Sources/services/NotificationService/DynamoDBDeviceTokenStore.swift`
