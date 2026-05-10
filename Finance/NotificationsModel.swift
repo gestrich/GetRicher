@@ -44,10 +44,10 @@ final class NotificationsModel {
         state = .registrationFailed(error)
     }
 
-    private func sendTokenToBackend(_ token: String) async {
-        guard let backendURL = UserDefaults.standard.string(forKey: "backendURL"),
-              !backendURL.isEmpty,
-              let url = URL(string: backendURL + "/api/device-tokens")
+    func sendTokenToBackend(_ token: String) async {
+        guard let rawURL = UserDefaults.standard.string(forKey: "backendURL"),
+              !rawURL.isEmpty,
+              let url = URL(string: rawURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/api/device-tokens")
         else { return }
 
         struct DeviceTokenRequest: Encodable {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(SettingsModel.self) var settingsModel
+    @Environment(NotificationsModel.self) var notificationsModel
     @State private var apiToken: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -72,6 +73,11 @@ struct SettingsView: View {
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
+                    if let token = notificationsModel.registeredToken {
+                        Button("Re-send Device Token") {
+                            Task { await notificationsModel.sendTokenToBackend(token) }
+                        }
+                    }
                 } header: {
                     Text("Backend")
                 } footer: {
