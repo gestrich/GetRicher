@@ -192,7 +192,10 @@ Create a `.claude/skills/` skill file for fetching real Lambda data during debug
 - Update `CLAUDE.md` to reference this skill: add it to the Architecture Skills table
 - Update `README.md` to document the CLI tool and the Lambda-first data flow
 
-## - [ ] Phase 8: Validation
+## - [x] Phase 8: Validation
+
+**Skills used**: `swift-testing`
+**Principles applied**: Added `NotificationServiceTests` target with 23 tests across 5 suites. Defined `InMemoryAccountStore`, `InMemoryTransactionStore`, and `InMemoryUserStore` actors in the test file to serve as in-memory protocol implementations — these provide a real store contract without requiring DynamoDB. Tests cover: store roundtrip (store/fetch/delete), per-user isolation, date range filtering (boundary and out-of-range cases), JSON encode/decode roundtrips for `Account` and `Transaction`, password hashing determinism, and route handler flow simulations (auth success/failure, unknown user, registration, duplicate detection). All 31 pre-existing `ReportingServiceTests` and `LunchMoneySDKTests` continue to pass. Lambda executable targets cannot be imported as test dependencies (the `@main`-generated entry point conflicts with the test runner's `main`); handler tests are instead represented as flow simulations that inject in-memory stores and assert the same outcomes the handlers produce.
 
 **Skills to read**: `swift-testing`
 

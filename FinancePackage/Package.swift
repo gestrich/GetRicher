@@ -101,6 +101,11 @@ var targets: [Target] = [
         dependencies: ["LunchMoneySDK"],
         path: "Tests/LunchMoneySDKTests"
     ),
+    .testTarget(
+        name: "NotificationServiceTests",
+        dependencies: ["NotificationService", "FinanceCoreSDK"],
+        path: "Tests/NotificationServiceTests"
+    ),
     // Apps Layer
     .executableTarget(
         name: "LambdaApp",
