@@ -134,6 +134,8 @@ struct GetRicherLambda {
                 notificationClient: notificationClient,
                 context: context
             )
+        } else if request.httpMethod == .post && request.path == "/api/test-push" {
+            return try await handleTestPush(tokenStore: tokenStore, notificationClient: notificationClient, context: context)
         } else {
             return try await handleAccountSummary(token: lunchMoneyToken, client: client, context: context)
         }
@@ -324,6 +326,39 @@ struct GetRicherLambda {
             accountCount: accounts.count,
             notificationsSent: tokens.count
         )
+        let data = try JSONEncoder().encode(result)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    private static func handleTestPush(
+        tokenStore: any DeviceTokenStoreProtocol,
+        notificationClient: any PushNotificationClientProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        let tokens = try await tokenStore.fetchAll()
+        guard !tokens.isEmpty else {
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"status":"ok","notificationsSent":0,"message":"No device tokens registered"}"#
+            )
+        }
+        let payload = NotificationPayload(
+            title: "Test Notification",
+            body: "Push notifications are working.",
+            data: ["deepLink": "inbox"]
+        )
+        try await notificationClient.send(payload, to: tokens)
+        context.logger.info("Test push sent to \(tokens.count) device(s)")
+        struct TestResult: Encodable {
+            let status: String
+            let notificationsSent: Int
+        }
+        let result = TestResult(status: "ok", notificationsSent: tokens.count)
         let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
