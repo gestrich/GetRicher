@@ -21,6 +21,7 @@ export interface LambdaConstructProps {
   reservedConcurrentExecutions?: number;
   snsPlatformArn?: string;
   pivotDay?: string;
+  adminPasswordHash?: string;
 }
 
 export class LambdaConstruct extends Construct {
@@ -49,7 +50,8 @@ export class LambdaConstruct extends Construct {
         S3_BUCKET_NAME: props.dataBucket.bucketName,
         DYNAMODB_TABLE_NAME: props.dynamoDbTable.tableName,
         SNS_PLATFORM_ARN: props.snsPlatformArn ?? '',
-        PIVOT_DAY: props.pivotDay ?? 'saturday'
+        PIVOT_DAY: props.pivotDay ?? 'saturday',
+        ADMIN_PASSWORD_HASH: props.adminPasswordHash ?? ''
       }
     });
 

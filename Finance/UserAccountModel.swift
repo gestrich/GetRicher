@@ -1,3 +1,4 @@
+import ClientService
 import Foundation
 import KeychainSDK
 import LoggingSDK
@@ -12,10 +13,12 @@ final class UserAccountModel {
     var errorMessage: String?
 
     private let keychainClient: any KeychainClientProtocol
+    var apiClient: APIClient?
     private let logger = Logger(label: "GetRicher.UserAccountModel")
 
-    init(keychainClient: any KeychainClientProtocol) {
+    init(keychainClient: any KeychainClientProtocol, apiClient: APIClient? = nil) {
         self.keychainClient = keychainClient
+        self.apiClient = apiClient
         loadCredentials()
     }
 
@@ -24,36 +27,38 @@ final class UserAccountModel {
             errorMessage = "Username and password are required."
             return
         }
-        let trimmedURL = backendURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !trimmedURL.isEmpty, let url = URL(string: trimmedURL + "/api/users/register") else {
-            errorMessage = "Invalid backend URL."
-            return
-        }
-        struct RegisterRequest: Encodable {
-            let username: String
-            let password: String
-        }
-        guard let body = try? JSONEncoder().encode(RegisterRequest(username: username, password: password)) else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
+        guard let client = apiClient else { return }
         logger.info("Registration attempt: \(username)")
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse {
-                switch httpResponse.statusCode {
-                case 200, 201, 409:
-                    saveCredentials()
-                    errorMessage = nil
-                default:
-                    logger.error("Registration failed (HTTP \(httpResponse.statusCode))")
-                    errorMessage = "Registration failed (HTTP \(httpResponse.statusCode))."
-                }
-            }
+            try await client.register(username: username, password: password)
+            saveCredentials()
+            errorMessage = nil
+        } catch APIError.httpError(let code, _) where code == 409 {
+            logger.error("Registration failed: username already exists")
+            errorMessage = "Username already exists. Use Log In instead."
         } catch {
             logger.error("Registration failed: \(error.localizedDescription)")
-            errorMessage = "Registration failed: \(error.localizedDescription)"
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func login(backendURL: String) async {
+        guard !username.isEmpty, !password.isEmpty else {
+            errorMessage = "Username and password are required."
+            return
+        }
+        guard let client = apiClient else { return }
+        logger.info("Login attempt: \(username)")
+        do {
+            try await client.login(username: username, password: password)
+            saveCredentials()
+            errorMessage = nil
+        } catch APIError.httpError(let code, _) where code == 401 {
+            logger.error("Login failed: invalid credentials")
+            errorMessage = "Invalid username or password."
+        } catch {
+            logger.error("Login failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -83,30 +88,13 @@ final class UserAccountModel {
 
     func sendReportNow(backendURL: String) async {
         errorMessage = nil
-        let trimmedURL = backendURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !trimmedURL.isEmpty, let url = URL(string: trimmedURL + "/api/send-my-report") else {
-            errorMessage = "Invalid backend URL."
-            return
-        }
-        struct SendReportRequest: Encodable {
-            let username: String
-            let password: String
-        }
-        guard let body = try? JSONEncoder().encode(SendReportRequest(username: username, password: password)) else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
+        guard let client = apiClient else { return }
         logger.info("Send report triggered by user: \(username)")
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                logger.error("Send report failed (HTTP \(httpResponse.statusCode))")
-                errorMessage = "Failed to send report (HTTP \(httpResponse.statusCode))."
-            }
+            try await client.sendReport(username: username, password: password)
         } catch {
             logger.error("Send report failed: \(error.localizedDescription)")
-            errorMessage = "Failed to send report: \(error.localizedDescription)"
+            errorMessage = error.localizedDescription
         }
     }
 }

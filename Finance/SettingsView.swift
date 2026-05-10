@@ -6,8 +6,12 @@ struct SettingsView: View {
     @Environment(UserAccountModel.self) var userAccountModel
     @Environment(AdminModel.self) var adminModel
     @State private var reportSent = false
-    @State private var showAdminLogin = false
-    @State private var pendingAdminPassword = ""
+    @State private var accountFormMode: AccountFormMode = .login
+    @AppStorage("adminUnlocked") private var adminUnlocked: Bool = false
+
+    enum AccountFormMode {
+        case login, register
+    }
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -72,15 +76,26 @@ struct SettingsView: View {
                         }
                     } else {
                         @Bindable var account = userAccountModel
+                        Picker("", selection: $accountFormMode) {
+                            Text("Log In").tag(AccountFormMode.login)
+                            Text("Register").tag(AccountFormMode.register)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: accountFormMode) { userAccountModel.errorMessage = nil }
                         TextField("Username", text: $account.username)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                             .textContentType(.username)
                         SecureField("Password", text: $account.password)
-                            .textContentType(.newPassword)
-                        Button("Register") {
+                            .textContentType(.password)
+                        Button(accountFormMode == .login ? "Log In" : "Register") {
                             Task {
-                                await userAccountModel.register(backendURL: settingsModel.backendURL)
+                                switch accountFormMode {
+                                case .login:
+                                    await userAccountModel.login(backendURL: settingsModel.backendURL)
+                                case .register:
+                                    await userAccountModel.register(backendURL: settingsModel.backendURL)
+                                }
                                 if userAccountModel.isRegistered, let token = notificationsModel.registeredToken {
                                     await notificationsModel.sendTokenToBackend(token)
                                 }
@@ -114,8 +129,8 @@ struct SettingsView: View {
                     }
                 }
 
-                if adminModel.hasAdminAccess {
-                    Section("Admin") {
+                Section {
+                    if adminUnlocked {
                         NavigationLink("Users") {
                             AdminUsersView()
                                 .environment(adminModel)
@@ -131,17 +146,12 @@ struct SettingsView: View {
                                 .environment(adminModel)
                                 .environment(settingsModel)
                         }
-                        Button("Sign Out Admin", role: .destructive) {
-                            adminModel.signOutAdmin()
-                        }
                     }
-                } else {
-                    Section("Admin") {
-                        Button("Admin Sign In") {
-                            pendingAdminPassword = ""
-                            showAdminLogin = true
+                } header: {
+                    Text("Admin")
+                        .onLongPressGesture(minimumDuration: 3) {
+                            adminUnlocked.toggle()
                         }
-                    }
                 }
             }
             .navigationTitle("Settings")
@@ -149,31 +159,6 @@ struct SettingsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         dismiss()
-                    }
-                }
-            }
-            .sheet(isPresented: $showAdminLogin) {
-                NavigationStack {
-                    Form {
-                        Section("Admin Password") {
-                            SecureField("Password", text: $pendingAdminPassword)
-                                .textContentType(.password)
-                        }
-                    }
-                    .navigationTitle("Admin Sign In")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showAdminLogin = false }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Sign In") {
-                                @Bindable var admin = adminModel
-                                adminModel.adminPassword = pendingAdminPassword
-                                adminModel.saveAdminCredentials()
-                                showAdminLogin = false
-                            }
-                            .disabled(pendingAdminPassword.isEmpty)
-                        }
                     }
                 }
             }

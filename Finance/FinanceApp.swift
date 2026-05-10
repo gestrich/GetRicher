@@ -38,13 +38,16 @@ struct FinanceApp: App {
         let syncClient: any FinanceSyncClientProtocol
         var otelService: OTelLoggingService? = nil
 
+        var apiClient: APIClient? = nil
         if appMode == .demo {
             keychainClient = DemoKeychainClient()
             syncClient = DemoFinanceSyncClient()
         } else {
             keychainClient = KeychainClient()
             let backendURL = UserDefaults.standard.string(forKey: "backendURL") ?? ""
-            syncClient = APIClient(baseURL: backendURL)
+            let client = APIClient(baseURL: backendURL)
+            syncClient = client
+            apiClient = client
             if let username = keychainClient.getUsername(),
                let password = keychainClient.getPassword(),
                !backendURL.isEmpty {
@@ -60,9 +63,9 @@ struct FinanceApp: App {
             keychainClient: keychainClient
         ))
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
-        let userAccountModel = UserAccountModel(keychainClient: keychainClient)
+        let userAccountModel = UserAccountModel(keychainClient: keychainClient, apiClient: apiClient)
         _userAccountModel = State(initialValue: userAccountModel)
-        _adminModel = State(initialValue: AdminModel(keychainClient: keychainClient))
+        _adminModel = State(initialValue: AdminModel())
         _notificationsModel = State(initialValue: NotificationsModel(userAccountModel: userAccountModel))
 
         do {
@@ -203,10 +206,13 @@ struct FinanceApp: App {
         if settingsModel.isDemoMode {
             keychainClient = DemoKeychainClient()
             syncClient = DemoFinanceSyncClient()
+            userAccountModel.apiClient = nil
         } else {
             keychainClient = KeychainClient()
             let backendURL = settingsModel.backendURL
-            syncClient = APIClient(baseURL: backendURL)
+            let client = APIClient(baseURL: backendURL)
+            syncClient = client
+            userAccountModel.apiClient = client
         }
 
         transactionsModel = TransactionsModel(

@@ -90,9 +90,11 @@ public class APIClient {
     }
 
     private func validateResponse(_ response: URLResponse, data: Data) throws {
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode, data: data)
         }
     }
 
@@ -103,6 +105,29 @@ public class APIClient {
             let raw = String(data: data, encoding: .utf8) ?? "<non-utf8>"
             throw APIError.decodingError(error, rawResponse: raw)
         }
+    }
+}
+
+// MARK: - User Account
+
+extension APIClient {
+    public func register(username: String, password: String) async throws {
+        struct RegisterRequest: Encodable {
+            let username: String
+            let password: String
+        }
+        let body = try JSONEncoder().encode(RegisterRequest(username: username, password: password))
+        _ = try await post("/api/users/register", body: body, headers: ["Content-Type": "application/json"])
+    }
+
+    public func login(username: String, password: String) async throws {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        _ = try await get("/api/accounts?\(query)")
     }
 }
 
@@ -182,50 +207,32 @@ extension APIClient {
 // MARK: - Admin
 
 extension APIClient {
-    public func adminListUsers(adminPassword: String) async throws -> [AdminUserInfo] {
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        let data = try await get("/api/admin/users?\(query)")
+    public func adminListUsers() async throws -> [AdminUserInfo] {
+        let data = try await get("/api/admin/users")
         return try decodeOrThrow([AdminUserInfo].self, from: data)
     }
 
-    public func adminDeleteUser(username: String, adminPassword: String) async throws {
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        _ = try await performDelete("/api/admin/users/\(username)?\(query)")
+    public func adminDeleteUser(username: String) async throws {
+        _ = try await performDelete("/api/admin/users/\(username)")
     }
 
-    public func adminUpdateLMToken(username: String, lmToken: String, adminPassword: String) async throws {
+    public func adminUpdateLMToken(username: String, lmToken: String) async throws {
         struct Body: Encodable { let lmToken: String }
         let body = try JSONEncoder().encode(Body(lmToken: lmToken))
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        _ = try await put("/api/admin/users/\(username)/lm-token?\(query)", body: body, headers: ["Content-Type": "application/json"])
+        _ = try await put("/api/admin/users/\(username)/lm-token", body: body, headers: ["Content-Type": "application/json"])
     }
 
-    public func adminListReports(adminPassword: String) async throws -> [ReviewItem] {
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        let data = try await get("/api/admin/reports?\(query)")
+    public func adminListReports() async throws -> [ReviewItem] {
+        let data = try await get("/api/admin/reports")
         return try decodeOrThrow([ReviewItem].self, from: data)
     }
 
-    public func adminDeleteReport(id: String, adminPassword: String) async throws {
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        _ = try await performDelete("/api/admin/reports/\(id)?\(query)")
+    public func adminDeleteReport(id: String) async throws {
+        _ = try await performDelete("/api/admin/reports/\(id)")
     }
 
-    public func adminErrors(adminPassword: String) async throws -> AdminErrorsResponse {
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
-        let query = components.percentEncodedQuery ?? ""
-        let data = try await get("/api/admin/errors?\(query)")
+    public func adminErrors() async throws -> AdminErrorsResponse {
+        let data = try await get("/api/admin/errors")
         return try decodeOrThrow(AdminErrorsResponse.self, from: data)
     }
 

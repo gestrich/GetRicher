@@ -855,25 +855,11 @@ struct GetRicherLambda {
         )
     }
 
-    private static func validateAdminCredentials(queryParams: [String: String]?) -> Bool {
-        guard let adminPasswordHash = ProcessInfo.processInfo.environment["ADMIN_PASSWORD_HASH"],
-              let providedPassword = queryParams?["adminPassword"]
-        else { return false }
-        return UserAccount.hashPassword(providedPassword) == adminPasswordHash
-    }
-
     private static func handleAdminListUsers(
         event: APIGatewayRequest,
         userStore: any UserStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         let users = try await userStore.fetchAll()
         struct AdminUserInfo: Encodable {
             let username: String
@@ -899,13 +885,6 @@ struct GetRicherLambda {
         tokenStore: any DeviceTokenStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         guard !username.isEmpty else {
             return APIGatewayResponse(
                 statusCode: .badRequest,
@@ -941,13 +920,6 @@ struct GetRicherLambda {
                 body: #"{"error":"Missing or invalid body"}"#
             )
         }
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         guard !username.isEmpty else {
             return APIGatewayResponse(
                 statusCode: .badRequest,
@@ -969,13 +941,6 @@ struct GetRicherLambda {
         reviewItemStore: any ReviewItemStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         let items = try await reviewItemStore.fetchAll()
         context.logger.info("Admin: listed \(items.count) report(s)")
         let data = try JSONEncoder().encode(items)
@@ -992,13 +957,6 @@ struct GetRicherLambda {
         reviewItemStore: any ReviewItemStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         guard !reportId.isEmpty else {
             return APIGatewayResponse(
                 statusCode: .badRequest,
@@ -1019,13 +977,6 @@ struct GetRicherLambda {
         event: APIGatewayRequest,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
-            return APIGatewayResponse(
-                statusCode: .unauthorized,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"Invalid admin credentials"}"#
-            )
-        }
         context.logger.info("Admin: errors requested (no stored error log configured)")
         struct ErrorsResponse: Encodable {
             let errors: [String]
