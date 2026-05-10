@@ -1332,8 +1332,12 @@ fileprivate struct AWSIOSLogsClient: IOSLogsClientProtocol, @unchecked Sendable 
             logGroupName: "/getricher/ios",
             startTime: startTime
         )
-        let response = try await cloudWatchLogs.filterLogEvents(request)
-        return response.events?.compactMap { $0.message } ?? []
+        do {
+            let response = try await cloudWatchLogs.filterLogEvents(request)
+            return response.events?.compactMap { $0.message } ?? []
+        } catch let error as CloudWatchLogsErrorType where error == .resourceNotFoundException {
+            return []
+        }
     }
 }
 
