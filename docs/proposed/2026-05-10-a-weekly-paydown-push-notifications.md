@@ -251,7 +251,10 @@ Wire the call through `NotificationsModel` or a new thin method on `UserAccountM
 
 ---
 
-## - [ ] Phase 6: Validation
+## - [x] Phase 6: Validation
+
+**Skills used**: none
+**Principles applied**: Ran `swift build` in `FinancePackage` (confirmed Linux-compatible compilation of all new domain types and service methods) and `xcodebuild build` for the iOS simulator target (confirmed no import or model injection breakage). Both builds succeeded cleanly.
 
 **Skills to read**: none
 
