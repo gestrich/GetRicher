@@ -166,14 +166,20 @@ struct GetRicherLambda {
             )
         } else if request.httpMethod == .post && request.path == "/api/send-my-report" {
             return try await handleSendMyReport(
-                lunchMoneyToken: lunchMoneyToken,
-                client: client,
                 tokenStore: tokenStore,
                 userStore: userStore,
+                accountStore: accountStore,
+                transactionStore: transactionStore,
                 notificationClient: notificationClient,
                 event: request,
                 context: context
             )
+        } else if request.httpMethod == .get && request.path == "/api/accounts" {
+            return try await handleGetAccounts(event: request, userStore: userStore, accountStore: accountStore, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/transactions" {
+            return try await handleGetTransactions(event: request, userStore: userStore, transactionStore: transactionStore, context: context)
+        } else if request.httpMethod == .post && request.path == "/api/refresh" {
+            return try await handleRefresh(event: request, client: client, userStore: userStore, accountStore: accountStore, transactionStore: transactionStore, context: context)
         } else if request.httpMethod == .post && request.path == "/api/test-push" {
             return try await handleTestPush(tokenStore: tokenStore, notificationClient: notificationClient, context: context)
         } else {
@@ -483,6 +489,36 @@ struct GetRicherLambda {
         return (accounts: accounts, notificationBody: notificationBody)
     }
 
+    private static func generatePaydownDataFromDynamoDB(
+        userId: String,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> (accounts: [Account], notificationBody: String) {
+        let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
+        let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
+
+        let range = PaydownDateRange.compute(pivotDay: pivotDay)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let fetchEndDate: String
+        if let rangeEndDate = dateFormatter.date(from: range.end),
+           let extended = Calendar.current.date(byAdding: .day, value: 7, to: rangeEndDate) {
+            fetchEndDate = dateFormatter.string(from: extended)
+        } else {
+            fetchEndDate = range.end
+        }
+
+        let accounts = try await accountStore.fetchAll(userId: userId)
+        let transactions = try await transactionStore.fetch(userId: userId, startDate: range.start, endDate: fetchEndDate)
+
+        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, pivotDay: pivotDay)
+        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        let notificationBody = body.isEmpty ? "No credit accounts found" : body
+
+        return (accounts: accounts, notificationBody: notificationBody)
+    }
+
     private static func handleGenerateReport(
         lunchMoneyToken: String,
         client: LunchMoneyClient,
@@ -537,11 +573,173 @@ struct GetRicherLambda {
         )
     }
 
-    private static func handleSendMyReport(
-        lunchMoneyToken: String,
+    private static func handleGetAccounts(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let username = event.queryStringParameters?["username"],
+              let password = event.queryStringParameters?["password"]
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username or password"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        let accounts = try await accountStore.fetchAll(userId: user.username)
+        context.logger.info("Fetched \(accounts.count) account(s) for user \(user.username)")
+        let data = try JSONEncoder().encode(accounts)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handleGetTransactions(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let username = event.queryStringParameters?["username"],
+              let password = event.queryStringParameters?["password"],
+              let startDate = event.queryStringParameters?["startDate"],
+              let endDate = event.queryStringParameters?["endDate"]
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username, password, startDate, or endDate"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        let transactions = try await transactionStore.fetch(userId: user.username, startDate: startDate, endDate: endDate)
+        context.logger.info("Fetched \(transactions.count) transaction(s) for user \(user.username)")
+        let data = try JSONEncoder().encode(transactions)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handleRefresh(
+        event: APIGatewayRequest,
         client: LunchMoneyClient,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(RefreshRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: request.username),
+              UserAccount.hashPassword(request.password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        guard let token = user.lunchMoneyToken else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"No Lunch Money token configured for this user"}"#
+            )
+        }
+
+        let accountsResponse = try await client.fetchPlaidAccounts(token: token)
+        let accounts = accountsResponse.plaidAccounts.map { dto in
+            Account(
+                lunchMoneyId: dto.id,
+                name: dto.name,
+                displayName: dto.displayName,
+                type: dto.type,
+                subtype: dto.subtype,
+                mask: dto.mask,
+                institutionName: dto.institutionName,
+                status: dto.status,
+                balance: dto.balance,
+                currency: dto.currency
+            )
+        }
+        try await accountStore.store(accounts, userId: user.username)
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let endDate = Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: -90, to: endDate) ?? endDate
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
+
+        let limit = 500
+        var offset = 0
+        var allTransactions: [Transaction] = []
+        while true {
+            let response = try await client.fetchTransactions(
+                token: token,
+                accountId: nil,
+                startDate: startDateString,
+                endDate: endDateString,
+                limit: limit,
+                offset: offset
+            )
+            allTransactions.append(contentsOf: response.transactions.map { $0.toDomain() })
+            if response.transactions.count < limit { break }
+            offset += limit
+        }
+        try await transactionStore.store(allTransactions, userId: user.username)
+
+        context.logger.info("Refreshed user \(user.username): \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
+
+        struct RefreshResult: Encodable {
+            let accounts: [Account]
+            let transactionCount: Int
+        }
+        let result = RefreshResult(accounts: accounts, transactionCount: allTransactions.count)
+        let data = try JSONEncoder().encode(result)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    private static func handleSendMyReport(
         tokenStore: any DeviceTokenStoreProtocol,
         userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         event: APIGatewayRequest,
         context: LambdaContext
@@ -566,9 +764,10 @@ struct GetRicherLambda {
             )
         }
 
-        let (_, summaryText) = try await generatePaydownData(
-            lunchMoneyToken: lunchMoneyToken,
-            client: client,
+        let (_, summaryText) = try await generatePaydownDataFromDynamoDB(
+            userId: user.username,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
             context: context
         )
 
@@ -684,6 +883,11 @@ private struct ResolveRequest: Decodable {
 }
 
 private struct SendMyReportRequest: Decodable {
+    let username: String
+    let password: String
+}
+
+private struct RefreshRequest: Decodable {
     let username: String
     let password: String
 }

@@ -77,7 +77,10 @@ Add a scheduled Lambda handler that polls Lunch Money for every registered user 
 - CDK: confirm EventBridge schedule is set to `rate(1 hour)` in `MonitoringConstruct` (update if it's currently daily)
 - Update Lambda environment to include any new required env vars (none expected — stores already receive `awsClient`)
 
-## - [ ] Phase 3: Lambda API Endpoints for Financial Data
+## - [x] Phase 3: Lambda API Endpoints for Financial Data
+
+**Skills used**: none (swift-architecture skill not locally available; conventions derived from reading existing Lambda handler and store files directly)
+**Principles applied**: Added `handleGetAccounts` (GET /api/accounts) and `handleGetTransactions` (GET /api/transactions) using query-param auth (username/password), and `handleRefresh` (POST /api/refresh) using body auth — all following the existing if-else routing pattern in `handleAPIGateway`. Added `generatePaydownDataFromDynamoDB` to read accounts/transactions from DynamoDB stores and updated `handleSendMyReport` to use it instead of calling `LunchMoneyClient` directly. `handleGenerateReport` retains LM calls since it is a system-level operation with no per-user context. `RefreshRequest` added alongside existing private request types.
 
 **Skills to read**: `/swift-architecture`
 
