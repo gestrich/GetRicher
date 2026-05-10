@@ -236,6 +236,11 @@ extension APIClient {
         return try decodeOrThrow(AdminErrorsResponse.self, from: data)
     }
 
+    public func buildStatus() async throws -> BuildStatusResponse {
+        let data = try await get("/api/build-status")
+        return try decodeOrThrow(BuildStatusResponse.self, from: data)
+    }
+
     func performDelete(_ path: String) async throws -> Data {
         let (data, _) = try await performRequest(endpoint: path, method: "DELETE", body: nil)
         return data

@@ -100,6 +100,7 @@ var targets: [Target] = [
             .product(name: "AWSLambdaEvents", package: "swift-aws-lambda-events"),
             .product(name: "Crypto", package: "swift-crypto"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
+            .product(name: "SotoCloudWatchLogs", package: "soto"),
             .target(name: "ClientService"),
             .target(name: "FinanceCoreSDK"),
             .target(name: "LunchMoneySDK"),

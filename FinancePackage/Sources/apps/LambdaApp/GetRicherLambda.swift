@@ -11,6 +11,7 @@ import LunchMoneySDK
 import NotificationService
 import ReportingService
 import SecretsService
+import SotoCloudWatchLogs
 import SotoSecretsManager
 
 @main
@@ -28,10 +29,13 @@ struct GetRicherLambda {
             let accountStore: any AccountStoreProtocol = LoggingAccountStore()
             let transactionStore: any TransactionStoreProtocol = LoggingTransactionStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
+            let iosLogsClient: any IOSLogsClientProtocol = LoggingIOSLogsClient()
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
                 let lunchMoneyToken = try await secretsClient.secret(named: "LUNCH_MONEY_TOKEN")
+                let githubToken = (try? await secretsClient.secret(named: "GITHUB_TOKEN")) ?? ""
                 return try await Self.handle(
                     lunchMoneyToken: lunchMoneyToken,
+                    githubToken: githubToken,
                     client: lunchMoneyClient,
                     event: event,
                     context: context,
@@ -40,7 +44,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    notificationClient: notificationClient
+                    notificationClient: notificationClient,
+                    iosLogsClient: iosLogsClient
                 )
             }
             try await runtime.run()
@@ -56,10 +61,13 @@ struct GetRicherLambda {
             let notificationClient: any PushNotificationClientProtocol = snsAppArn.isEmpty
                 ? LoggingPushNotificationClient()
                 : SNSPushNotificationClient(awsClient: awsClient, region: region, platformApplicationArn: snsAppArn)
+            let iosLogsClient: any IOSLogsClientProtocol = AWSIOSLogsClient(awsClient: awsClient, region: region)
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
                 let lunchMoneyToken = try await secretsClient.secret(named: "LUNCH_MONEY_TOKEN")
+                let githubToken = (try? await secretsClient.secret(named: "GITHUB_TOKEN")) ?? ""
                 return try await Self.handle(
                     lunchMoneyToken: lunchMoneyToken,
+                    githubToken: githubToken,
                     client: lunchMoneyClient,
                     event: event,
                     context: context,
@@ -68,7 +76,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    notificationClient: notificationClient
+                    notificationClient: notificationClient,
+                    iosLogsClient: iosLogsClient
                 )
             }
             try await runtime.run()
@@ -78,6 +87,7 @@ struct GetRicherLambda {
 
     static func handle(
         lunchMoneyToken: String,
+        githubToken: String,
         client: LunchMoneyClient,
         event: LambdaDispatchEvent,
         context: LambdaContext,
@@ -86,13 +96,15 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        notificationClient: any PushNotificationClientProtocol
+        notificationClient: any PushNotificationClientProtocol,
+        iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
         do {
             switch event.kind {
             case .apiGateway(let request):
                 return try await handleAPIGateway(
                     lunchMoneyToken: lunchMoneyToken,
+                    githubToken: githubToken,
                     client: client,
                     request: request,
                     context: context,
@@ -101,7 +113,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    notificationClient: notificationClient
+                    notificationClient: notificationClient,
+                    iosLogsClient: iosLogsClient
                 )
             case .scheduled:
                 context.logger.info("EventBridge scheduled trigger received")
@@ -133,6 +146,7 @@ struct GetRicherLambda {
 
     private static func handleAPIGateway(
         lunchMoneyToken: String,
+        githubToken: String,
         client: LunchMoneyClient,
         request: APIGatewayRequest,
         context: LambdaContext,
@@ -141,7 +155,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        notificationClient: any PushNotificationClientProtocol
+        notificationClient: any PushNotificationClientProtocol,
+        iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
         if request.httpMethod == .post && request.path == "/api/users/register" {
             return try await handleUserRegistration(event: request, userStore: userStore, context: context)
@@ -202,7 +217,9 @@ struct GetRicherLambda {
             let reportId = String(request.path.dropFirst("/api/admin/reports/".count))
             return try await handleAdminDeleteReport(reportId: reportId, event: request, reviewItemStore: reviewItemStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/admin/errors" {
-            return try await handleAdminErrors(event: request, context: context)
+            return try await handleAdminErrors(iosLogsClient: iosLogsClient, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/build-status" {
+            return try await handleBuildStatus(githubToken: githubToken, context: context)
         } else if request.httpMethod == .post && request.path == "/api/otlp/logs" {
             return try await handleOTLPLogs(event: request, userStore: userStore, context: context)
         } else {
@@ -955,20 +972,97 @@ struct GetRicherLambda {
     }
 
     private static func handleAdminErrors(
-        event: APIGatewayRequest,
+        iosLogsClient: any IOSLogsClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        context.logger.info("Admin: errors requested (no stored error log configured)")
         struct ErrorsResponse: Encodable {
             let errors: [String]
             let message: String
         }
-        let response = ErrorsResponse(errors: [], message: "No stored error log configured. Check CloudWatch for Lambda logs.")
-        let data = try JSONEncoder().encode(response)
+        do {
+            let errors = try await iosLogsClient.fetchRecentErrors(hours: 24)
+            let message = errors.isEmpty ? "No errors in the last 24 hours." : ""
+            let response = ErrorsResponse(errors: errors, message: message)
+            let data = try JSONEncoder().encode(response)
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: String(data: data, encoding: .utf8) ?? "{}"
+            )
+        } catch {
+            context.logger.error("Failed to fetch iOS logs: \(error)")
+            let response = ErrorsResponse(errors: [], message: "Failed to fetch logs: \(error.localizedDescription)")
+            let data = try JSONEncoder().encode(response)
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: String(data: data, encoding: .utf8) ?? "{}"
+            )
+        }
+    }
+
+    private static func handleBuildStatus(
+        githubToken: String,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        struct GitHubRunsResponse: Decodable {
+            let workflowRuns: [GitHubRun]
+            enum CodingKeys: String, CodingKey { case workflowRuns = "workflow_runs" }
+        }
+        struct GitHubRun: Decodable {
+            let id: Int
+            let name: String
+            let status: String
+            let conclusion: String?
+            let createdAt: String
+            let htmlUrl: String
+            let headCommit: GitHubCommit?
+            enum CodingKeys: String, CodingKey {
+                case id, name, status, conclusion
+                case createdAt = "created_at"
+                case htmlUrl = "html_url"
+                case headCommit = "head_commit"
+            }
+        }
+        struct GitHubCommit: Decodable { let message: String }
+        struct BuildRun: Encodable {
+            let id: Int
+            let name: String
+            let status: String
+            let conclusion: String?
+            let createdAt: String
+            let htmlUrl: String
+            let commitMessage: String
+        }
+        struct BuildStatusResult: Encodable { let runs: [BuildRun] }
+
+        guard let url = URL(string: "https://api.github.com/repos/gestrich/GetRicher/actions/runs?per_page=10") else {
+            return APIGatewayResponse(statusCode: .internalServerError, headers: [:], body: #"{"error":"Invalid GitHub URL"}"#)
+        }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(githubToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        req.setValue("GetRicher-Lambda/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, _) = try await URLSession.shared.data(for: req)
+        let ghResponse = try JSONDecoder().decode(GitHubRunsResponse.self, from: data)
+        let runs = ghResponse.workflowRuns.map { run in
+            BuildRun(
+                id: run.id,
+                name: run.name,
+                status: run.status,
+                conclusion: run.conclusion,
+                createdAt: run.createdAt,
+                htmlUrl: run.htmlUrl,
+                commitMessage: run.headCommit?.message ?? ""
+            )
+        }
+        let result = BuildStatusResult(runs: runs)
+        let responseData = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
-            body: String(data: data, encoding: .utf8) ?? "{}"
+            body: String(data: responseData, encoding: .utf8) ?? "{}"
         )
     }
 
@@ -1213,6 +1307,37 @@ private struct RefreshRequest: Decodable {
 private struct AdminUpdateLMTokenRequest: Decodable {
     let lmToken: String
 }
+
+// MARK: - iOS Logs Client
+
+protocol IOSLogsClientProtocol: Sendable {
+    func fetchRecentErrors(hours: Int) async throws -> [String]
+}
+
+fileprivate struct LoggingIOSLogsClient: IOSLogsClientProtocol {
+    func fetchRecentErrors(hours: Int) async throws -> [String] { [] }
+}
+
+fileprivate struct AWSIOSLogsClient: IOSLogsClientProtocol, @unchecked Sendable {
+    private let cloudWatchLogs: CloudWatchLogs
+
+    init(awsClient: AWSClient, region: Region?) {
+        self.cloudWatchLogs = CloudWatchLogs(client: awsClient, region: region)
+    }
+
+    func fetchRecentErrors(hours: Int) async throws -> [String] {
+        let startTime = Int64(Date().addingTimeInterval(-Double(hours) * 3600).timeIntervalSince1970 * 1000)
+        let request = CloudWatchLogs.FilterLogEventsRequest(
+            filterPattern: "ERROR",
+            logGroupName: "/getricher/ios",
+            startTime: startTime
+        )
+        let response = try await cloudWatchLogs.filterLogEvents(request)
+        return response.events?.compactMap { $0.message } ?? []
+    }
+}
+
+// MARK: - Stub Stores
 
 private struct LoggingDeviceTokenStore: DeviceTokenStoreProtocol {
     func store(_ token: DeviceToken) async throws {

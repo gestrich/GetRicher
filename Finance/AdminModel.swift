@@ -10,6 +10,7 @@ final class AdminModel {
     var users: [AdminUserInfo] = []
     var reports: [ReviewItem] = []
     var errors: AdminErrorsResponse?
+    var buildStatus: BuildStatusResponse?
     var isLoading = false
     var errorMessage: String?
 
@@ -78,6 +79,19 @@ final class AdminModel {
             reports.removeAll { $0.id == id }
         } catch {
             logger.error("Admin: delete report \(id) failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadBuildStatus(backendURL: String) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        logger.info("Admin: load build status")
+        do {
+            buildStatus = try await APIClient(baseURL: backendURL).buildStatus()
+        } catch {
+            logger.error("Admin: load build status failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

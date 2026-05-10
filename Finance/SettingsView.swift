@@ -165,6 +165,11 @@ struct SettingsView: View {
                                 .environment(adminModel)
                                 .environment(settingsModel)
                         }
+                        NavigationLink("Build Status") {
+                            AdminBuildStatusView()
+                                .environment(adminModel)
+                                .environment(settingsModel)
+                        }
                     }
                 } header: {
                     Text("Admin")
