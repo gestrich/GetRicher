@@ -34,7 +34,7 @@ struct GetRicherLambda {
             }
             try await runtime.run()
         } else {
-            let awsClient = AWSClient()
+            let awsClient = AWSClient(middleware: LoggingMiddleware())
             let secretsClient = AWSSecretsClient(awsClient: awsClient, region: region)
             let tokenStore = DynamoDBDeviceTokenStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let reviewItemStore = DynamoDBReviewItemStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
