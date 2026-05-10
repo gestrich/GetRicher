@@ -4,6 +4,7 @@ import LoggingSDK
 import PersistenceService
 import SwiftData
 import SwiftUI
+import UIKit
 
 @main
 struct FinanceApp: App {
@@ -18,12 +19,12 @@ struct FinanceApp: App {
     @State private var notificationsModel: NotificationsModel
     @State private var reviewInboxModel = ReviewInboxModel()
     @State private var lastModeChangeCount: Int = 0
+    @State private var otelService: OTelLoggingService?
+    @State private var otelTaskID: Int = 0
 
     let modelContainer: ModelContainer
 
     init() {
-        GetRicherLogging.bootstrap()
-
         let storedMode = UserDefaults.standard.object(forKey: "appMode") as? Int
         let appMode: AppMode
         if let storedMode, let mode = AppMode(rawValue: storedMode) {
@@ -35,6 +36,7 @@ struct FinanceApp: App {
 
         let keychainClient: any KeychainClientProtocol
         let syncClient: any FinanceSyncClientProtocol
+        var otelService: OTelLoggingService? = nil
 
         if appMode == .demo {
             keychainClient = DemoKeychainClient()
@@ -43,7 +45,15 @@ struct FinanceApp: App {
             keychainClient = KeychainClient()
             let backendURL = UserDefaults.standard.string(forKey: "backendURL") ?? ""
             syncClient = APIClient(baseURL: backendURL)
+            if let username = keychainClient.getUsername(),
+               let password = keychainClient.getPassword(),
+               !backendURL.isEmpty {
+                otelService = try? OTelLoggingService(baseURL: backendURL, username: username, password: password)
+            }
         }
+
+        GetRicherLogging.bootstrap(otelService: otelService)
+        _otelService = State(initialValue: otelService)
 
         _transactionsModel = State(initialValue: TransactionsModel(
             syncClient: syncClient,
@@ -79,6 +89,13 @@ struct FinanceApp: App {
                         seedDemoVendorsAndRules()
                     }
                     await notificationsModel.requestPermissionAndRegister()
+                }
+                .task(id: otelTaskID) {
+                    guard let service = otelService, !settingsModel.isDemoMode else { return }
+                    try? await service.run()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    otelTaskID += 1
                 }
                 .onChange(of: settingsModel.modeChangeCount) { _, newCount in
                     guard newCount != lastModeChangeCount else { return }
@@ -196,5 +213,7 @@ struct FinanceApp: App {
             syncClient: syncClient,
             keychainClient: keychainClient
         )
+
+        otelTaskID += 1
     }
 }

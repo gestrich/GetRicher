@@ -76,9 +76,10 @@ Add `swift-otel` as a dependency and update `LoggingSDK` to configure OTel log e
   - When `otelService` is provided: `MultiplexLogHandler([fileHandler, otelService.makeLogHandler(label:)])`
 - Return the `OTelLoggingService?` from `bootstrap()` so the caller can run it
 
-## - [ ] Phase 3: iOS App Lifecycle Integration
+## - [x] Phase 3: iOS App Lifecycle Integration
 
-**Skills to read**: `/swift-architecture`, `/swift-swiftui`
+**Skills used**: `/swift-architecture`, `/swift-swiftui`
+**Principles applied**: Followed the Apps-layer pattern — `OTelLoggingService` is created once in `init()` only when credentials exist (non-demo mode, non-empty backendURL, username+password in Keychain), then stored as `@State` per the SwiftUI MV pattern. Used `.task(id: otelTaskID)` so incrementing `otelTaskID` cancels the current run and restarts it (triggering graceful flush via ServiceLifecycle shutdown). Background notifications increment `otelTaskID` to trigger a flush cycle. `handleModeChange()` also increments `otelTaskID` so the task re-evaluates `isDemoMode` — if now in demo mode the guard returns early, stopping exports; if returning to token mode (originally bootstrapped with OTel), the service resumes. Demo mode at launch means no OTel was added at bootstrap, so no OTel task ever runs.
 
 Wire the OTel service into `FinanceApp` so it starts at launch, keeps running, and flushes on background.
 
