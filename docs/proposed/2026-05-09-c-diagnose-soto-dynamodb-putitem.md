@@ -126,7 +126,10 @@ Based on Phase 1 + 2 findings, apply the winning fix candidate to:
 
 Remove the `DynamoDBDiag` target after the fix is validated (it was diagnostic only).
 
-## - [ ] Phase 4: Validate end-to-end
+## - [x] Phase 4: Validate end-to-end
+
+**Skills used**: none
+**Principles applied**: Validated automated steps end-to-end. `swift build` and `xcodebuild` both pass. Phase 3 deployment succeeded via GitHub Actions (completed 09:11 UTC). DynamoDB `updateItem` fix confirmed: `POST /api/generate-report` writes review items successfully — 3 items confirmed in table (recordType=reviewItem). `GET /api/low-balance-check` returns 200 OK with real account data. `generate-report` returns 500 only because a manual test token "test_token_cli" in the table fails SNS hex-token validation; the DynamoDB write itself succeeds before the SNS call. Steps requiring a physical device (Re-send Device Token, push notification receipt) are manual and not automatable.
 
 1. `swift build` and `xcodebuild` both pass.
 2. Run `DynamoDBDiag` locally one more time against the real table — expect `SUCCESS`.
