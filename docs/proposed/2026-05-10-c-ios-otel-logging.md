@@ -145,9 +145,10 @@ private let logger = Logger(label: "com.getricher.<ModelName>")
 
 **General rule:** every `catch` block that currently sets `errorMessage` or silently fails should also call `logger.error`. Every user-initiated action (button tap resulting in an async call) should log at `.info` when it starts. No need to log purely derived/computed values.
 
-## - [ ] Phase 6: Document Log Reading in CLAUDE.md
+## - [x] Phase 6: Document Log Reading in CLAUDE.md
 
-**Skills to read**: none required
+**Skills used**: none
+**Principles applied**: Added a `## Reading iOS Logs` section to `CLAUDE.md` covering the log group, per-user stream naming, a CloudWatch Logs Insights query, an AWS CLI one-liner for recent errors, and a CLI command to list all user streams. Placed it before `## General Guidance` for discoverability.
 
 Add a section to `CLAUDE.md` explaining how to read iOS user logs from CloudWatch so this is discoverable in future sessions.
 

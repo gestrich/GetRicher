@@ -120,6 +120,51 @@ See [docs/deployment.md](docs/deployment.md) for the full deployment guide. Key 
 - `build.sh` extracts `Package.resolved` from the Linux Docker builder image — do not short-circuit this or the Linux build will hang
 - Any target importing `SwiftData`, `SwiftUI`, `UIKit`, or `AppKit` must be in a `#if os(macOS) || os(iOS)` block in `Package.swift`; `LambdaApp` and `ClientService` must be unconditional
 
+## Reading iOS Logs
+
+iOS app logs are shipped to CloudWatch via the OTLP Lambda proxy.
+
+- **Log group:** `/getricher/ios`
+- **Log stream per user:** one stream per username (e.g., `bill`)
+
+### CloudWatch Logs Insights query (console)
+
+```
+fields @timestamp, severity, body
+| filter @logStream = "<username>"
+| filter severity >= "ERROR"
+| sort @timestamp desc
+| limit 50
+```
+
+### AWS CLI — recent errors for a specific user
+
+```bash
+aws logs filter-log-events \
+  --log-group-name /getricher/ios \
+  --log-stream-name <username> \
+  --filter-pattern ERROR \
+  --profile production \
+  --start-time $(date -v-1H +%s000) \
+  --output json | python3 -c "
+import sys, json
+for e in json.load(sys.stdin)['events']:
+    print(e['timestamp'], e['message'][:200])
+"
+```
+
+### AWS CLI — list all user streams (admin view)
+
+```bash
+aws logs describe-log-streams \
+  --log-group-name /getricher/ios \
+  --profile production \
+  --query 'logStreams[].logStreamName' \
+  --output json
+```
+
+> Logs take up to ~10 seconds to appear after the iOS batch processor flushes (configurable via `OTelLoggingService` batch interval).
+
 ## General Guidance
 
 - When in doubt about where to place new code, read `/swift-architecture` first
