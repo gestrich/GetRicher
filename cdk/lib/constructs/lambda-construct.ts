@@ -76,6 +76,20 @@ export class LambdaConstruct extends Construct {
       resources: ['*'],
     }));
 
+    // Grant CloudWatch Logs permissions for iOS OTLP proxy endpoint
+    this.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'logs:PutLogEvents',
+        'logs:CreateLogStream',
+        'logs:DescribeLogStreams',
+      ],
+      resources: ['arn:aws:logs:*:*:log-group:/getricher/ios:*'],
+    }));
+    this.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['logs:CreateLogGroup'],
+      resources: ['arn:aws:logs:*:*:log-group:/getricher/ios'],
+    }));
+
     // Daily paydown report: every day at 5:00 AM UTC
     const dailyReportRule = new events.Rule(this, 'DailyReportRule', {
       schedule: events.Schedule.cron({ minute: '0', hour: '5' }),

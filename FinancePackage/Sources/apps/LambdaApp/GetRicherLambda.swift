@@ -1,7 +1,9 @@
 import AWSLambdaEvents
 import AWSLambdaRuntime
+import Crypto
 import FinanceCoreSDK
 import Foundation
+import HTTPTypes
 import LunchMoneySDK
 import NotificationService
 import ReportingService
@@ -198,6 +200,8 @@ struct GetRicherLambda {
             return try await handleAdminDeleteReport(reportId: reportId, event: request, reviewItemStore: reviewItemStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/admin/errors" {
             return try await handleAdminErrors(event: request, context: context)
+        } else if request.httpMethod == .post && request.path == "/api/otlp/logs" {
+            return try await handleOTLPLogs(event: request, userStore: userStore, context: context)
         } else {
             return try await handleAccountSummary(token: lunchMoneyToken, client: client, context: context)
         }
@@ -1060,6 +1064,184 @@ struct GetRicherLambda {
             headers: ["Content-Type": "application/json"],
             body: String(data: data, encoding: .utf8) ?? "{}"
         )
+    }
+
+    private static func handleOTLPLogs(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        // Local dev mode: print body and return without forwarding
+        if ProcessInfo.processInfo.environment["LUNCH_MONEY_TOKEN"] != nil {
+            let size = event.body?.count ?? 0
+            let username = event.headers.first(where: { $0.key.lowercased() == "x-getricher-username" })?.value ?? "unknown"
+            context.logger.info("OTLP logs received (dev mode): \(size) bytes from user \(username)")
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"status":"ok"}"#
+            )
+        }
+
+        guard let username = event.headers.first(where: { $0.key.lowercased() == "x-getricher-username" })?.value,
+              let password = event.headers.first(where: { $0.key.lowercased() == "x-getricher-password" })?.value
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing credentials"}"#
+            )
+        }
+
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+
+        guard let bodyString = event.body else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing body"}"#
+            )
+        }
+
+        let otlpData: Data
+        if event.isBase64Encoded {
+            guard let decoded = Data(base64Encoded: bodyString) else {
+                return APIGatewayResponse(
+                    statusCode: .badRequest,
+                    headers: ["Content-Type": "application/json"],
+                    body: #"{"error":"Invalid base64 body"}"#
+                )
+            }
+            otlpData = decoded
+        } else {
+            otlpData = Data(bodyString.utf8)
+        }
+
+        let region = ProcessInfo.processInfo.environment["AWS_REGION"] ?? "us-east-1"
+        let accessKey = ProcessInfo.processInfo.environment["AWS_ACCESS_KEY_ID"] ?? ""
+        let secretKey = ProcessInfo.processInfo.environment["AWS_SECRET_ACCESS_KEY"] ?? ""
+        let sessionToken = ProcessInfo.processInfo.environment["AWS_SESSION_TOKEN"]
+
+        guard !accessKey.isEmpty, !secretKey.isEmpty else {
+            context.logger.error("Missing AWS credentials for OTLP forwarding")
+            return APIGatewayResponse(
+                statusCode: .internalServerError,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Internal server error"}"#
+            )
+        }
+
+        let cwURL = URL(string: "https://logs.\(region).amazonaws.com/v1/logs")!
+        let otlpHeaders: [(String, String)] = [
+            ("content-type", "application/x-protobuf"),
+            ("x-aws-log-group", "/getricher/ios"),
+            ("x-aws-log-stream", user.username),
+        ]
+
+        let signedHeaders = sigV4Sign(
+            url: cwURL,
+            method: "POST",
+            headers: otlpHeaders,
+            body: otlpData,
+            service: "logs",
+            region: region,
+            accessKey: accessKey,
+            secretKey: secretKey,
+            sessionToken: sessionToken
+        )
+
+        var urlRequest = URLRequest(url: cwURL)
+        urlRequest.httpMethod = "POST"
+        urlRequest.httpBody = otlpData
+        for (name, value) in signedHeaders {
+            urlRequest.setValue(value, forHTTPHeaderField: name)
+        }
+
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        let upstreamStatus = (response as? HTTPURLResponse)?.statusCode ?? 502
+        context.logger.info("Forwarded OTLP logs for user \(user.username): upstream status \(upstreamStatus)")
+
+        return APIGatewayResponse(
+            statusCode: HTTPResponse.Status(code: upstreamStatus),
+            headers: ["Content-Type": "application/json"],
+            body: upstreamStatus < 300 ? #"{"status":"ok"}"# : #"{"error":"Upstream error"}"#
+        )
+    }
+
+    private static func sigV4Sign(
+        url: URL,
+        method: String,
+        headers: [(String, String)],
+        body: Data,
+        service: String,
+        region: String,
+        accessKey: String,
+        secretKey: String,
+        sessionToken: String?
+    ) -> [(name: String, value: String)] {
+        let date = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = TimeZone(abbreviation: "UTC")
+
+        dateFormatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        let amzDate = dateFormatter.string(from: date)
+        dateFormatter.dateFormat = "yyyyMMdd"
+        let dateStamp = dateFormatter.string(from: date)
+
+        let host = url.host ?? ""
+        let path = url.path.isEmpty ? "/" : url.path
+        let query = url.query ?? ""
+
+        var canonHeaders: [(String, String)] = headers.map { ($0.0.lowercased(), $0.1) }
+        canonHeaders.append(("host", host))
+        canonHeaders.append(("x-amz-date", amzDate))
+        if let token = sessionToken {
+            canonHeaders.append(("x-amz-security-token", token))
+        }
+        canonHeaders.sort { $0.0 < $1.0 }
+
+        let canonicalHeadersStr = canonHeaders.map { "\($0.0):\($0.1)\n" }.joined()
+        let signedHeadersStr = canonHeaders.map { $0.0 }.joined(separator: ";")
+
+        let bodyHash = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
+        let canonicalRequest = [method.uppercased(), path, query, canonicalHeadersStr, signedHeadersStr, bodyHash].joined(separator: "\n")
+        let crHash = SHA256.hash(data: Data(canonicalRequest.utf8)).map { String(format: "%02x", $0) }.joined()
+
+        let scope = "\(dateStamp)/\(region)/\(service)/aws4_request"
+        let stringToSign = "AWS4-HMAC-SHA256\n\(amzDate)\n\(scope)\n\(crHash)"
+
+        func hmacData(_ key: Data, _ message: String) -> Data {
+            let symKey = SymmetricKey(data: key)
+            return Data(HMAC<SHA256>.authenticationCode(for: Data(message.utf8), using: symKey))
+        }
+
+        let kDate = hmacData(Data("AWS4\(secretKey)".utf8), dateStamp)
+        let kRegion = hmacData(kDate, region)
+        let kService = hmacData(kRegion, service)
+        let kSigning = hmacData(kService, "aws4_request")
+
+        let sigSymKey = SymmetricKey(data: kSigning)
+        let signature = Data(HMAC<SHA256>.authenticationCode(for: Data(stringToSign.utf8), using: sigSymKey))
+            .map { String(format: "%02x", $0) }.joined()
+
+        let authHeader = "AWS4-HMAC-SHA256 Credential=\(accessKey)/\(scope), SignedHeaders=\(signedHeadersStr), Signature=\(signature)"
+
+        var result: [(name: String, value: String)] = headers.map { (name: $0.0, value: $0.1) }
+        result.append((name: "x-amz-date", value: amzDate))
+        result.append((name: "Authorization", value: authHeader))
+        if let token = sessionToken {
+            result.append((name: "x-amz-security-token", value: token))
+        }
+        return result
     }
 }
 

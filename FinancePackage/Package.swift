@@ -5,6 +5,7 @@ import PackageDescription
 var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+    .package(url: "https://github.com/apple/swift-http-types.git", from: "1.0.0"),
     .package(url: "https://github.com/swift-server/swift-aws-lambda-runtime.git", "2.0.0"..<"3.0.0"),
     .package(url: "https://github.com/swift-server/swift-aws-lambda-events.git", from: "0.5.0"),
     .package(url: "https://github.com/soto-project/soto.git", from: "7.10.0"),
@@ -112,6 +113,8 @@ var targets: [Target] = [
         dependencies: [
             .product(name: "AWSLambdaRuntime", package: "swift-aws-lambda-runtime"),
             .product(name: "AWSLambdaEvents", package: "swift-aws-lambda-events"),
+            .product(name: "Crypto", package: "swift-crypto"),
+            .product(name: "HTTPTypes", package: "swift-http-types"),
             .target(name: "ClientService"),
             .target(name: "FinanceCoreSDK"),
             .target(name: "LunchMoneySDK"),
