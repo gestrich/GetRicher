@@ -42,6 +42,7 @@
 		46BDDB8D2F77D5EA00335E29 /* GetRicherInteractiveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GetRicherInteractiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A964267E2F42994C0038587D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		A96426912F42ACAC0038587D /* GetRicherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GetRicherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A97264D12FB004DC00859B0F /* GetRicher.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GetRicher.entitlements; sourceTree = "<group>"; };
 		A995B8DC2F18604A00855692 /* GetRicher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GetRicher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -109,6 +110,7 @@
 		A995B8D32F18604A00855692 = {
 			isa = PBXGroup;
 			children = (
+				A97264D12FB004DC00859B0F /* GetRicher.entitlements */,
 				A964267E2F42994C0038587D /* README.md */,
 				A995B8DE2F18604A00855692 /* Finance */,
 				A96426922F42ACAC0038587D /* GetRicherUITests */,
@@ -535,6 +537,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = GetRicher.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5K844XFC6W;
@@ -568,6 +571,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = GetRicher.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5K844XFC6W;
