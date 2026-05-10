@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Transaction: Identifiable, Sendable {
+public struct Transaction: Identifiable, Sendable, Codable {
     public let lunchMoneyId: Int
     public let date: String
     public let payee: String

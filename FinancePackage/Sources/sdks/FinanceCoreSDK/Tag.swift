@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Tag: Sendable {
+public struct Tag: Sendable, Codable {
     public let lunchMoneyId: Int?
     public let name: String?
 

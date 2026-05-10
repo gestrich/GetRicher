@@ -9,17 +9,27 @@ public struct UserAccount: Sendable, Codable {
     public let username: String
     public let passwordHash: String
     public let createdAt: String
+    public let lunchMoneyToken: String?
 
     public init(username: String, passwordHash: String) {
         self.username = username
         self.passwordHash = passwordHash
         self.createdAt = ISO8601DateFormatter().string(from: Date())
+        self.lunchMoneyToken = nil
     }
 
     public init(username: String, passwordHash: String, createdAt: String) {
         self.username = username
         self.passwordHash = passwordHash
         self.createdAt = createdAt
+        self.lunchMoneyToken = nil
+    }
+
+    public init(username: String, passwordHash: String, createdAt: String, lunchMoneyToken: String?) {
+        self.username = username
+        self.passwordHash = passwordHash
+        self.createdAt = createdAt
+        self.lunchMoneyToken = lunchMoneyToken
     }
 
     public static func hashPassword(_ password: String) -> String {

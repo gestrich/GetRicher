@@ -11,4 +11,8 @@ public struct LoggingUserStore: UserStoreProtocol {
         print("[UserStore] STUB find username=\(username) -> nil")
         return nil
     }
+
+    public func update(lunchMoneyToken: String, forUsername username: String) async throws {
+        print("[UserStore] STUB update lunchMoneyToken for username=\(username)")
+    }
 }

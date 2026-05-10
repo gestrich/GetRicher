@@ -20,6 +20,8 @@ struct GetRicherLambda {
             let tokenStore: any DeviceTokenStoreProtocol = LoggingDeviceTokenStore()
             let reviewItemStore: any ReviewItemStoreProtocol = LoggingReviewItemStore()
             let userStore: any UserStoreProtocol = LoggingUserStore()
+            let accountStore: any AccountStoreProtocol = LoggingAccountStore()
+            let transactionStore: any TransactionStoreProtocol = LoggingTransactionStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
                 let lunchMoneyToken = try await secretsClient.secret(named: "LUNCH_MONEY_TOKEN")
@@ -31,6 +33,8 @@ struct GetRicherLambda {
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
                     userStore: userStore,
+                    accountStore: accountStore,
+                    transactionStore: transactionStore,
                     notificationClient: notificationClient
                 )
             }
@@ -41,6 +45,8 @@ struct GetRicherLambda {
             let tokenStore = DynamoDBDeviceTokenStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let reviewItemStore = DynamoDBReviewItemStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let userStore = DynamoDBUserStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let accountStore = DynamoDBAccountStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let transactionStore = DynamoDBTransactionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let snsAppArn = ProcessInfo.processInfo.environment["SNS_PLATFORM_ARN"] ?? ""
             let notificationClient: any PushNotificationClientProtocol = snsAppArn.isEmpty
                 ? LoggingPushNotificationClient()
@@ -55,6 +61,8 @@ struct GetRicherLambda {
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
                     userStore: userStore,
+                    accountStore: accountStore,
+                    transactionStore: transactionStore,
                     notificationClient: notificationClient
                 )
             }
@@ -71,6 +79,8 @@ struct GetRicherLambda {
         tokenStore: any DeviceTokenStoreProtocol,
         reviewItemStore: any ReviewItemStoreProtocol,
         userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol
     ) async throws -> APIGatewayResponse {
         do {
@@ -84,6 +94,8 @@ struct GetRicherLambda {
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
                     userStore: userStore,
+                    accountStore: accountStore,
+                    transactionStore: transactionStore,
                     notificationClient: notificationClient
                 )
             case .scheduled:
@@ -115,6 +127,8 @@ struct GetRicherLambda {
         tokenStore: any DeviceTokenStoreProtocol,
         reviewItemStore: any ReviewItemStoreProtocol,
         userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol
     ) async throws -> APIGatewayResponse {
         if request.httpMethod == .post && request.path == "/api/users/register" {
@@ -182,7 +196,12 @@ struct GetRicherLambda {
                 body: #"{"error":"Username already exists"}"#
             )
         }
-        let user = UserAccount(username: request.username, passwordHash: UserAccount.hashPassword(request.password))
+        let user = UserAccount(
+            username: request.username,
+            passwordHash: UserAccount.hashPassword(request.password),
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            lunchMoneyToken: request.lunchMoneyToken
+        )
         try await userStore.create(user)
         context.logger.info("Registered user: \(user.username)")
         return APIGatewayResponse(
@@ -573,6 +592,7 @@ struct GetRicherLambda {
 private struct UserRegistrationRequest: Decodable {
     let username: String
     let password: String
+    let lunchMoneyToken: String?
 }
 
 private struct DeviceTokenRequest: Decodable {
