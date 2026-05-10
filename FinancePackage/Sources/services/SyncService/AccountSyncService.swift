@@ -1,5 +1,4 @@
-import Foundation
-import LunchMoneySDK
+import FinanceCoreSDK
 import PersistenceService
 import SwiftData
 
@@ -7,13 +6,12 @@ public struct AccountSyncService: Sendable {
 
     public init() {}
 
-    /// Sync fetched account DTOs into SwiftData, returning what changed.
     @MainActor
     public func sync(
-        dtos: [PlaidAccountDTO],
+        accounts: [FinanceCoreSDK.Account],
         context: ModelContext
     ) throws -> SyncResult {
-        let fetchedIds = Set(dtos.map(\.id))
+        let fetchedIds = Set(accounts.map(\.lunchMoneyId))
 
         let descriptor = FetchDescriptor<PlaidAccount>()
         let existing = try context.fetch(descriptor)
@@ -22,26 +20,26 @@ public struct AccountSyncService: Sendable {
         var inserted = 0
         var updated = 0
 
-        for dto in dtos {
-            if let local = existingByLMId[dto.id] {
-                if hasChanges(dto: dto, local: local) {
-                    applyDTO(dto, to: local)
+        for account in accounts {
+            if let local = existingByLMId[account.lunchMoneyId] {
+                if hasChanges(account: account, local: local) {
+                    apply(account, to: local)
                     updated += 1
                 }
             } else {
-                let account = PlaidAccount(
-                    lunchMoneyId: dto.id,
-                    name: dto.name,
-                    displayName: dto.displayName,
-                    type: dto.type,
-                    subtype: dto.subtype,
-                    mask: dto.mask,
-                    institutionName: dto.institutionName,
-                    status: dto.status,
-                    balance: dto.balance,
-                    currency: dto.currency
+                let local = PlaidAccount(
+                    lunchMoneyId: account.lunchMoneyId,
+                    name: account.name,
+                    displayName: account.displayName,
+                    type: account.type,
+                    subtype: account.subtype,
+                    mask: account.mask,
+                    institutionName: account.institutionName,
+                    status: account.status,
+                    balance: account.balance,
+                    currency: account.currency
                 )
-                context.insert(account)
+                context.insert(local)
                 inserted += 1
             }
         }
@@ -55,33 +53,32 @@ public struct AccountSyncService: Sendable {
         }
 
         try context.save()
-
         return SyncResult(inserted: inserted, updated: updated, deleted: deleted)
     }
 
     // MARK: - Private
 
-    private func hasChanges(dto: PlaidAccountDTO, local: PlaidAccount) -> Bool {
-        local.name != dto.name
-            || local.displayName != dto.displayName
-            || local.type != dto.type
-            || local.subtype != dto.subtype
-            || local.mask != dto.mask
-            || local.institutionName != dto.institutionName
-            || local.status != dto.status
-            || local.balance != dto.balance
-            || local.currency != dto.currency
+    private func hasChanges(account: FinanceCoreSDK.Account, local: PlaidAccount) -> Bool {
+        local.name != account.name
+            || local.displayName != account.displayName
+            || local.type != account.type
+            || local.subtype != account.subtype
+            || local.mask != account.mask
+            || local.institutionName != account.institutionName
+            || local.status != account.status
+            || local.balance != account.balance
+            || local.currency != account.currency
     }
 
-    private func applyDTO(_ dto: PlaidAccountDTO, to local: PlaidAccount) {
-        local.name = dto.name
-        local.displayName = dto.displayName
-        local.type = dto.type
-        local.subtype = dto.subtype
-        local.mask = dto.mask
-        local.institutionName = dto.institutionName
-        local.status = dto.status
-        local.balance = dto.balance
-        local.currency = dto.currency
+    private func apply(_ account: FinanceCoreSDK.Account, to local: PlaidAccount) {
+        local.name = account.name
+        local.displayName = account.displayName
+        local.type = account.type
+        local.subtype = account.subtype
+        local.mask = account.mask
+        local.institutionName = account.institutionName
+        local.status = account.status
+        local.balance = account.balance
+        local.currency = account.currency
     }
 }

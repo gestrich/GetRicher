@@ -1,6 +1,6 @@
+import ClientService
 import KeychainSDK
 import LoggingSDK
-import LunchMoneySDK
 import PersistenceService
 import SwiftData
 import SwiftUI
@@ -33,22 +33,20 @@ struct FinanceApp: App {
         }
 
         let keychainClient: any KeychainClientProtocol
-        let lunchMoneyClient: any LunchMoneyClientProtocol
+        let syncClient: any FinanceSyncClientProtocol
 
         if appMode == .demo {
             keychainClient = DemoKeychainClient()
-            lunchMoneyClient = DemoLunchMoneyClient()
+            syncClient = DemoFinanceSyncClient()
         } else {
             keychainClient = KeychainClient()
-            lunchMoneyClient = LunchMoneyClient()
+            let backendURL = UserDefaults.standard.string(forKey: "backendURL") ?? ""
+            syncClient = APIClient(baseURL: backendURL)
         }
 
-        let pageSizeOverride = UserDefaults.standard.integer(forKey: "pageSize")
-        let pageSize = pageSizeOverride > 0 ? pageSizeOverride : 200
         _transactionsModel = State(initialValue: TransactionsModel(
-            lunchMoneyClient: lunchMoneyClient,
-            keychainClient: keychainClient,
-            pageSize: pageSize
+            syncClient: syncClient,
+            keychainClient: keychainClient
         ))
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
         let userAccountModel = UserAccountModel(keychainClient: keychainClient)
@@ -84,6 +82,9 @@ struct FinanceApp: App {
                     lastModeChangeCount = newCount
                     handleModeChange()
                 }
+                .onChange(of: settingsModel.backendURL) { _, newURL in
+                    updateBackendURL(newURL)
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .apnsTokenReceived)) { notification in
                     guard let tokenData = notification.userInfo?["token"] as? Data else { return }
                     Task { await notificationsModel.handleDeviceToken(tokenData) }
@@ -105,11 +106,9 @@ struct FinanceApp: App {
     private func seedDemoVendorsAndRules() {
         let context = modelContainer.mainContext
 
-        // Check if already seeded
         let existingVendors = (try? context.fetch(FetchDescriptor<PersistenceService.Vendor>())) ?? []
         guard existingVendors.isEmpty else { return }
 
-        // Create categories
         let groceries = PersistenceService.Category(name: "Groceries", emoji: "🛒", colorHex: "#34C759")
         let dining = PersistenceService.Category(name: "Dining", emoji: "🍽️", colorHex: "#FF9500")
         let subscriptions = PersistenceService.Category(name: "Subscriptions", emoji: "🔄", colorHex: "#5856D6")
@@ -119,7 +118,6 @@ struct FinanceApp: App {
             context.insert(cat)
         }
 
-        // Create vendors for Amex Gold (accountId: 2)
         let wholeFoods = PersistenceService.Vendor(name: "Whole Foods", filterText: "Whole Foods", category: groceries, accountId: 2)
         let traderJoes = PersistenceService.Vendor(name: "Trader Joe's", filterText: "Trader Joe", category: groceries, accountId: 2)
         let chipotle = PersistenceService.Vendor(name: "Chipotle", filterText: "Chipotle", category: dining, accountId: 2)
@@ -129,8 +127,6 @@ struct FinanceApp: App {
             context.insert(vendor)
         }
 
-        // Create transfer rules for Amex Gold (targetAccountId: 2)
-        // Rule: Groceries paid from Ally Savings (sourceAccountId: 3)
         let groceryRule = PersistenceService.TransferRule(
             name: "Groceries → Savings",
             vendor: wholeFoods,
@@ -147,7 +143,6 @@ struct FinanceApp: App {
             priority: 10
         )
 
-        // Default catch-all: everything else from Chase Checking (sourceAccountId: 1)
         let defaultRule = PersistenceService.TransferRule(
             name: "Everything Else → Checking",
             sourceAccountId: 1,
@@ -163,8 +158,15 @@ struct FinanceApp: App {
     }
 
     @MainActor
+    private func updateBackendURL(_ newURL: String) {
+        guard !settingsModel.isDemoMode,
+              let apiClient = transactionsModel.syncClient as? APIClient
+        else { return }
+        apiClient.baseURL = newURL
+    }
+
+    @MainActor
     private func handleModeChange() {
-        // Clear all SwiftData
         let context = modelContainer.mainContext
         do {
             try context.delete(model: PersistenceService.Transaction.self)
@@ -175,24 +177,21 @@ struct FinanceApp: App {
             print("Failed to clear data: \(error)")
         }
 
-        // Recreate clients based on new mode
         let keychainClient: any KeychainClientProtocol
-        let lunchMoneyClient: any LunchMoneyClientProtocol
+        let syncClient: any FinanceSyncClientProtocol
 
         if settingsModel.isDemoMode {
             keychainClient = DemoKeychainClient()
-            lunchMoneyClient = DemoLunchMoneyClient()
+            syncClient = DemoFinanceSyncClient()
         } else {
             keychainClient = KeychainClient()
-            lunchMoneyClient = LunchMoneyClient()
+            let backendURL = settingsModel.backendURL
+            syncClient = APIClient(baseURL: backendURL)
         }
 
-        let pageSizeOverride = UserDefaults.standard.integer(forKey: "pageSize")
-        let pageSize = pageSizeOverride > 0 ? pageSizeOverride : 200
         transactionsModel = TransactionsModel(
-            lunchMoneyClient: lunchMoneyClient,
-            keychainClient: keychainClient,
-            pageSize: pageSize
+            syncClient: syncClient,
+            keychainClient: keychainClient
         )
     }
 }

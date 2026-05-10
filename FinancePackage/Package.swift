@@ -58,6 +58,9 @@ var targets: [Target] = [
     ),
     .target(
         name: "ClientService",
+        dependencies: [
+            .target(name: "FinanceCoreSDK"),
+        ],
         path: "Sources/services/ClientService"
     ),
     .target(
@@ -137,7 +140,7 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "SyncService",
-        dependencies: ["LunchMoneySDK", "PersistenceService", "KeychainSDK"],
+        dependencies: ["ClientService", "FinanceCoreSDK", "PersistenceService", "KeychainSDK"],
         path: "Sources/services/SyncService"
     ),
     .executableTarget(

@@ -1,3 +1,4 @@
+import FinanceCoreSDK
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -92,6 +93,52 @@ public class APIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw APIError.invalidResponse
+        }
+    }
+}
+
+// MARK: - FinanceSyncClientProtocol
+
+extension APIClient: FinanceSyncClientProtocol {
+    public func fetchAccounts(username: String, password: String) async throws -> [Account] {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/accounts?\(query)")
+        return try decodeOrThrow([Account].self, from: data)
+    }
+
+    public func fetchTransactions(username: String, password: String, startDate: String, endDate: String) async throws -> [Transaction] {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+            URLQueryItem(name: "startDate", value: startDate),
+            URLQueryItem(name: "endDate", value: endDate),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/transactions?\(query)")
+        return try decodeOrThrow([Transaction].self, from: data)
+    }
+
+    public func triggerRefresh(username: String, password: String) async throws {
+        struct RefreshBody: Encodable {
+            let username: String
+            let password: String
+        }
+        let body = try JSONEncoder().encode(RefreshBody(username: username, password: password))
+        _ = try await post("/api/refresh", body: body, headers: ["Content-Type": "application/json"])
+    }
+
+    private func decodeOrThrow<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            let raw = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            throw APIError.decodingError(error, rawResponse: raw)
         }
     }
 }

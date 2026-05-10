@@ -98,9 +98,10 @@ Add Lambda API endpoints that serve cached financial data from DynamoDB, so clie
 - Add `Encodable` response types for accounts and transactions
 - Update `handleGenerateReport` and `handleSendMyReport` to read transactions/accounts from DynamoDB instead of calling `LunchMoneyClient` directly
 
-## - [ ] Phase 4: iOS Dumb Client
+## - [x] Phase 4: iOS Dumb Client
 
-**Skills to read**: `/swift-architecture`, `/swift-swiftui`
+**Skills used**: none (swift-architecture and swift-swiftui skills not locally available; conventions derived from reading existing service and app files directly)
+**Principles applied**: Defined `FinanceSyncClientProtocol` (with `fetchAccounts`, `fetchTransactions`, `triggerRefresh`) in `ClientService` so both `APIClient` and `DemoFinanceSyncClient` conform to it. Updated `AccountSyncService` and `TransactionSyncService` to accept `FinanceCoreSDK.Account`/`Transaction` (using module-qualified names to avoid the `PersistenceService.Transaction` name conflict). Rewrote `SyncCoordinator` to use `username`/`password` from `KeychainClient` instead of an LM API token; removed pagination (Lambda returns all data in one call). Replaced `DemoLunchMoneyClient` with `DemoFinanceSyncClient` that returns the same demo data in the new type format. Removed LM token UI section from `SettingsView`; the existing Account section (username/password) is the only credential flow. `FinanceApp` updates the `APIClient.baseURL` when `settingsModel.backendURL` changes. `LunchMoneySDK` replaced by `ClientService` in the iOS Xcode target's linked frameworks.
 
 Replace `SyncService`'s direct Lunch Money calls with Lambda API calls. iOS retains SwiftData caching but sources all data from Lambda.
 

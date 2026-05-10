@@ -1,7 +1,7 @@
+import ClientService
 import Foundation
 import KeychainSDK
 import LoggingSDK
-import LunchMoneySDK
 import PersistenceService
 import SwiftData
 import SyncService
@@ -13,12 +13,13 @@ class TransactionsModel: Identifiable {
 
     private let syncCoordinator: SyncCoordinator
     private let logger = Logger(label: "GetRicher.TransactionsModel")
+    let syncClient: any FinanceSyncClientProtocol
 
-    init(lunchMoneyClient: any LunchMoneyClientProtocol, keychainClient: any KeychainClientProtocol, pageSize: Int) {
+    init(syncClient: any FinanceSyncClientProtocol, keychainClient: any KeychainClientProtocol) {
+        self.syncClient = syncClient
         self.syncCoordinator = SyncCoordinator(
-            lunchMoneyClient: lunchMoneyClient,
-            keychainClient: keychainClient,
-            pageSize: pageSize
+            syncClient: syncClient,
+            keychainClient: keychainClient
         )
     }
 

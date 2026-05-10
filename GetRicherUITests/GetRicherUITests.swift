@@ -211,8 +211,8 @@ final class GetRicherUITests: XCTestCase {
         let demoDataButton = app.buttons["Demo Data"]
         XCTAssertTrue(demoDataButton.waitForExistence(timeout: 5), "Demo Data mode option should exist")
 
-        let apiTokenButton = app.buttons["API Token"]
-        XCTAssertTrue(apiTokenButton.waitForExistence(timeout: 5), "API Token mode option should exist")
+        let connectedButton = app.buttons["Connected"]
+        XCTAssertTrue(connectedButton.waitForExistence(timeout: 5), "Connected mode option should exist")
     }
 
     // MARK: - Category List
@@ -238,6 +238,7 @@ final class GetRicherUITests: XCTestCase {
         navigateToSettings(app)
 
         // Scroll down to find the Logs link in the Diagnostics section
+        app.swipeUp()
         let logsLink = app.staticTexts["Logs"]
         XCTAssertTrue(logsLink.waitForExistence(timeout: 5), "Logs link should exist")
         logsLink.tap()
