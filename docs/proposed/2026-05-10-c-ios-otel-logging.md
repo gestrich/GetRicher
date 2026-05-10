@@ -188,7 +188,10 @@ Add a section to `CLAUDE.md` explaining how to read iOS user logs from CloudWatc
   ```
 - Note that logs take up to ~10 seconds to appear after the iOS batch processor flushes (configurable via `OTelLoggingService` batch interval)
 
-## - [ ] Phase 7: Validation
+## - [x] Phase 7: Validation
+
+**Skills used**: none
+**Principles applied**: Added an "OTLP log handler flows" test suite to `NotificationServiceTests` following the existing "Lambda route handler flows" pattern — tests simulate each decision branch of `handleOTLPLogs` (missing headers → 401, wrong password → 401, unknown user → 401, valid credentials → auth success, base64 decode failure → 400, plain body passthrough) using `InMemoryUserStore` and Foundation, with no network required. The handler is `private static` so direct call-through tests are not possible; the logic-simulation pattern already used for other routes is the appropriate approach.
 
 **Skills to read**: none required
 

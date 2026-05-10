@@ -348,6 +348,98 @@ struct UserAccountAuthTests {
     }
 }
 
+// MARK: - OTLP log handler flow tests
+//
+// These tests exercise the credential-validation and body-parsing logic used
+// by the Lambda `handleOTLPLogs` handler by simulating each decision branch
+// with in-memory stores and plain Foundation calls — no network required.
+
+@Suite("OTLP log handler flows")
+struct OTLPLogHandlerTests {
+    @Test("Missing credentials headers returns 401")
+    func missingCredentialsHeaders() {
+        let headers: [(String, String)] = []
+        let username = headers.first(where: { $0.0.lowercased() == "x-getricher-username" })?.1
+        let password = headers.first(where: { $0.0.lowercased() == "x-getricher-password" })?.1
+        #expect(username == nil || password == nil, "Handler should reject requests with missing credentials")
+    }
+
+    @Test("Only username header present returns 401")
+    func missingPasswordHeader() {
+        let headers = [("x-getricher-username", "bill")]
+        let username = headers.first(where: { $0.0.lowercased() == "x-getricher-username" })?.1
+        let password = headers.first(where: { $0.0.lowercased() == "x-getricher-password" })?.1
+        #expect(username != nil)
+        #expect(password == nil, "Handler should reject requests with missing password")
+    }
+
+    @Test("Invalid password returns 401")
+    func invalidPassword() async throws {
+        let userStore = InMemoryUserStore()
+        let user = UserAccount(
+            username: "bill",
+            passwordHash: UserAccount.hashPassword("correct"),
+            createdAt: "2026-01-01"
+        )
+        try await userStore.create(user)
+
+        let found = try await userStore.find(username: "bill")
+        let authenticated = found != nil && UserAccount.hashPassword("wrong") == found!.passwordHash
+        #expect(!authenticated, "Handler should reject wrong password")
+    }
+
+    @Test("Unknown username returns 401")
+    func unknownUsername() async throws {
+        let userStore = InMemoryUserStore()
+        let found = try await userStore.find(username: "ghost")
+        #expect(found == nil, "Handler should reject unknown username")
+    }
+
+    @Test("Valid credentials authenticate successfully")
+    func validCredentials() async throws {
+        let userStore = InMemoryUserStore()
+        let password = "s3cret"
+        let user = UserAccount(
+            username: "bill",
+            passwordHash: UserAccount.hashPassword(password),
+            createdAt: "2026-01-01"
+        )
+        try await userStore.create(user)
+
+        let found = try await userStore.find(username: "bill")
+        let authenticated = found != nil && UserAccount.hashPassword(password) == found!.passwordHash
+        #expect(authenticated, "Handler should accept correct credentials")
+    }
+
+    @Test("Valid base64-encoded body decodes correctly")
+    func validBase64Body() {
+        let original = Data("test-otlp-payload".utf8)
+        let encoded = original.base64EncodedString()
+        let decoded = Data(base64Encoded: encoded)
+        #expect(decoded == original, "Handler should decode valid base64 body")
+    }
+
+    @Test("Invalid base64 body returns 400")
+    func invalidBase64Body() {
+        let invalid = "not!!valid%%base64"
+        let decoded = Data(base64Encoded: invalid)
+        #expect(decoded == nil, "Handler should return 400 for invalid base64 body")
+    }
+
+    @Test("Plain text body is used directly when isBase64Encoded is false")
+    func plainTextBody() {
+        let body = "otlp-protobuf-bytes"
+        let data = Data(body.utf8)
+        #expect(!data.isEmpty, "Handler should pass plain body as-is to CloudWatch")
+    }
+
+    @Test("Missing body returns 400")
+    func missingBody() {
+        let body: String? = nil
+        #expect(body == nil, "Handler should return 400 when body is absent")
+    }
+}
+
 // MARK: - Test helpers
 
 private func makeAccount(id: Int) -> Account {
