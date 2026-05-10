@@ -11,6 +11,9 @@ public protocol KeychainClientProtocol: Sendable {
     func savePassword(_ password: String) throws
     func getPassword() -> String?
     func deletePassword() throws
+    func saveAdminPassword(_ password: String) throws
+    func getAdminPassword() -> String?
+    func deleteAdminPassword() throws
 }
 
 public struct KeychainClient: KeychainClientProtocol, Sendable {
@@ -18,6 +21,7 @@ public struct KeychainClient: KeychainClientProtocol, Sendable {
     private let apiTokenKey: String
     private let usernameKey = "account.username"
     private let passwordKey = "account.password"
+    private let adminPasswordKey = "admin.password"
 
     public init(service: String = "com.finance.app", apiTokenKey: String = "lunchmoney.apiToken") {
         self.service = service
@@ -58,6 +62,18 @@ public struct KeychainClient: KeychainClientProtocol, Sendable {
 
     public func deletePassword() throws {
         try delete(forKey: passwordKey)
+    }
+
+    public func saveAdminPassword(_ password: String) throws {
+        try save(password, forKey: adminPasswordKey)
+    }
+
+    public func getAdminPassword() -> String? {
+        get(forKey: adminPasswordKey)
+    }
+
+    public func deleteAdminPassword() throws {
+        try delete(forKey: adminPasswordKey)
     }
 
     private func save(_ value: String, forKey key: String) throws {

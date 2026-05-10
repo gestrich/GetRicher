@@ -20,4 +20,8 @@ public struct LoggingUserStore: UserStoreProtocol {
     public func update(lunchMoneyToken: String, forUsername username: String) async throws {
         print("[UserStore] STUB update lunchMoneyToken for username=\(username)")
     }
+
+    public func delete(username: String) async throws {
+        print("[UserStore] STUB delete username=\(username)")
+    }
 }

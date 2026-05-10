@@ -182,6 +182,22 @@ struct GetRicherLambda {
             return try await handleRefresh(event: request, client: client, userStore: userStore, accountStore: accountStore, transactionStore: transactionStore, context: context)
         } else if request.httpMethod == .post && request.path == "/api/test-push" {
             return try await handleTestPush(tokenStore: tokenStore, notificationClient: notificationClient, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/admin/users" {
+            return try await handleAdminListUsers(event: request, userStore: userStore, context: context)
+        } else if request.httpMethod == .delete && request.path.hasPrefix("/api/admin/users/") && !request.path.hasSuffix("/lm-token") {
+            let username = String(request.path.dropFirst("/api/admin/users/".count))
+            return try await handleAdminDeleteUser(username: username, event: request, userStore: userStore, accountStore: accountStore, transactionStore: transactionStore, tokenStore: tokenStore, context: context)
+        } else if request.httpMethod == .put && request.path.hasSuffix("/lm-token") && request.path.hasPrefix("/api/admin/users/") {
+            let withoutPrefix = String(request.path.dropFirst("/api/admin/users/".count))
+            let username = String(withoutPrefix.dropLast("/lm-token".count))
+            return try await handleAdminUpdateLMToken(username: username, event: request, userStore: userStore, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/admin/reports" {
+            return try await handleAdminListReports(event: request, reviewItemStore: reviewItemStore, context: context)
+        } else if request.httpMethod == .delete && request.path.hasPrefix("/api/admin/reports/") {
+            let reportId = String(request.path.dropFirst("/api/admin/reports/".count))
+            return try await handleAdminDeleteReport(reportId: reportId, event: request, reviewItemStore: reviewItemStore, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/admin/errors" {
+            return try await handleAdminErrors(event: request, context: context)
         } else {
             return try await handleAccountSummary(token: lunchMoneyToken, client: client, context: context)
         }
@@ -832,6 +848,191 @@ struct GetRicherLambda {
         )
     }
 
+    private static func validateAdminCredentials(queryParams: [String: String]?) -> Bool {
+        guard let adminPasswordHash = ProcessInfo.processInfo.environment["ADMIN_PASSWORD_HASH"],
+              let providedPassword = queryParams?["adminPassword"]
+        else { return false }
+        return UserAccount.hashPassword(providedPassword) == adminPasswordHash
+    }
+
+    private static func handleAdminListUsers(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        let users = try await userStore.fetchAll()
+        struct AdminUserInfo: Encodable {
+            let username: String
+            let createdAt: String
+            let hasLMToken: Bool
+        }
+        let infos = users.map { AdminUserInfo(username: $0.username, createdAt: $0.createdAt, hasLMToken: $0.lunchMoneyToken != nil) }
+        context.logger.info("Admin: listed \(infos.count) user(s)")
+        let data = try JSONEncoder().encode(infos)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handleAdminDeleteUser(
+        username: String,
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        tokenStore: any DeviceTokenStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        guard !username.isEmpty else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username"}"#
+            )
+        }
+        try await accountStore.deleteAll(userId: username)
+        try await transactionStore.deleteAll(userId: username)
+        try await tokenStore.deleteAll(userId: username)
+        try await userStore.delete(username: username)
+        context.logger.info("Admin: deleted user \(username) and all associated data")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
+    private static func handleAdminUpdateLMToken(
+        username: String,
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(AdminUpdateLMTokenRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        guard !username.isEmpty else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username"}"#
+            )
+        }
+        try await userStore.update(lunchMoneyToken: request.lmToken, forUsername: username)
+        context.logger.info("Admin: updated LM token for user \(username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
+    private static func handleAdminListReports(
+        event: APIGatewayRequest,
+        reviewItemStore: any ReviewItemStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        let items = try await reviewItemStore.fetchAll()
+        context.logger.info("Admin: listed \(items.count) report(s)")
+        let data = try JSONEncoder().encode(items)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handleAdminDeleteReport(
+        reportId: String,
+        event: APIGatewayRequest,
+        reviewItemStore: any ReviewItemStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        guard !reportId.isEmpty else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing report id"}"#
+            )
+        }
+        try await reviewItemStore.delete(id: reportId)
+        context.logger.info("Admin: deleted report \(reportId)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
+    private static func handleAdminErrors(
+        event: APIGatewayRequest,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard validateAdminCredentials(queryParams: event.queryStringParameters) else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid admin credentials"}"#
+            )
+        }
+        context.logger.info("Admin: errors requested (no stored error log configured)")
+        struct ErrorsResponse: Encodable {
+            let errors: [String]
+            let message: String
+        }
+        let response = ErrorsResponse(errors: [], message: "No stored error log configured. Check CloudWatch for Lambda logs.")
+        let data = try JSONEncoder().encode(response)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
     private static func handleAccountSummary(
         token: String,
         client: LunchMoneyClient,
@@ -892,6 +1093,10 @@ private struct RefreshRequest: Decodable {
     let password: String
 }
 
+private struct AdminUpdateLMTokenRequest: Decodable {
+    let lmToken: String
+}
+
 private struct LoggingDeviceTokenStore: DeviceTokenStoreProtocol {
     func store(_ token: DeviceToken) async throws {
         print("[DeviceTokenStore] STUB store token: \(token.id)")
@@ -899,6 +1104,9 @@ private struct LoggingDeviceTokenStore: DeviceTokenStoreProtocol {
     func fetchAll() async throws -> [DeviceToken] {
         print("[DeviceTokenStore] STUB fetchAll -> []")
         return []
+    }
+    func deleteAll(userId: String) async throws {
+        print("[DeviceTokenStore] STUB deleteAll userId=\(userId)")
     }
 }
 

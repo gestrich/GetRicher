@@ -11,4 +11,8 @@ public struct LoggingAccountStore: AccountStoreProtocol {
         print("[AccountStore] STUB fetchAll userId=\(userId) -> []")
         return []
     }
+
+    public func deleteAll(userId: String) async throws {
+        print("[AccountStore] STUB deleteAll userId=\(userId)")
+    }
 }

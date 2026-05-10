@@ -5,4 +5,5 @@ public protocol UserStoreProtocol: Sendable {
     func find(username: String) async throws -> UserAccount?
     func fetchAll() async throws -> [UserAccount]
     func update(lunchMoneyToken: String, forUsername username: String) async throws
+    func delete(username: String) async throws
 }

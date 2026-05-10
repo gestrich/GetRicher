@@ -95,6 +95,15 @@ public class APIClient {
             throw APIError.invalidResponse
         }
     }
+
+    fileprivate func decodeOrThrow<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            let raw = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            throw APIError.decodingError(error, rawResponse: raw)
+        }
+    }
 }
 
 // MARK: - FinanceSyncClientProtocol
@@ -133,14 +142,6 @@ extension APIClient: FinanceSyncClientProtocol {
         _ = try await post("/api/refresh", body: body, headers: ["Content-Type": "application/json"])
     }
 
-    private func decodeOrThrow<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        do {
-            return try JSONDecoder().decode(type, from: data)
-        } catch {
-            let raw = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-            throw APIError.decodingError(error, rawResponse: raw)
-        }
-    }
 }
 
 // MARK: - Review items
@@ -175,6 +176,67 @@ extension APIClient {
         }
         let body = try JSONEncoder().encode(SendReportBody(username: username, password: password))
         _ = try await post("/api/send-my-report", body: body, headers: ["Content-Type": "application/json"])
+    }
+}
+
+// MARK: - Admin
+
+extension APIClient {
+    public func adminListUsers(adminPassword: String) async throws -> [AdminUserInfo] {
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/admin/users?\(query)")
+        return try decodeOrThrow([AdminUserInfo].self, from: data)
+    }
+
+    public func adminDeleteUser(username: String, adminPassword: String) async throws {
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        _ = try await performDelete("/api/admin/users/\(username)?\(query)")
+    }
+
+    public func adminUpdateLMToken(username: String, lmToken: String, adminPassword: String) async throws {
+        struct Body: Encodable { let lmToken: String }
+        let body = try JSONEncoder().encode(Body(lmToken: lmToken))
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        _ = try await put("/api/admin/users/\(username)/lm-token?\(query)", body: body, headers: ["Content-Type": "application/json"])
+    }
+
+    public func adminListReports(adminPassword: String) async throws -> [ReviewItem] {
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/admin/reports?\(query)")
+        return try decodeOrThrow([ReviewItem].self, from: data)
+    }
+
+    public func adminDeleteReport(id: String, adminPassword: String) async throws {
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        _ = try await performDelete("/api/admin/reports/\(id)?\(query)")
+    }
+
+    public func adminErrors(adminPassword: String) async throws -> AdminErrorsResponse {
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "adminPassword", value: adminPassword)]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/admin/errors?\(query)")
+        return try decodeOrThrow(AdminErrorsResponse.self, from: data)
+    }
+
+    func performDelete(_ path: String) async throws -> Data {
+        let (data, _) = try await performRequest(endpoint: path, method: "DELETE", body: nil)
+        return data
+    }
+
+    func put(_ path: String, body: Data?, headers: [String: String] = [:]) async throws -> Data {
+        let (data, _) = try await performRequest(endpoint: path, method: "PUT", body: body, headers: headers)
+        return data
     }
 }
 

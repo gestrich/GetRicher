@@ -12,6 +12,7 @@ struct FinanceApp: App {
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
     @State private var userAccountModel: UserAccountModel
+    @State private var adminModel: AdminModel
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
     @State private var logsModel = LogsModel()
     @State private var notificationsModel: NotificationsModel
@@ -51,6 +52,7 @@ struct FinanceApp: App {
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
         let userAccountModel = UserAccountModel(keychainClient: keychainClient)
         _userAccountModel = State(initialValue: userAccountModel)
+        _adminModel = State(initialValue: AdminModel(keychainClient: keychainClient))
         _notificationsModel = State(initialValue: NotificationsModel(userAccountModel: userAccountModel))
 
         do {
@@ -66,6 +68,7 @@ struct FinanceApp: App {
                 .environment(transactionsModel)
                 .environment(settingsModel)
                 .environment(userAccountModel)
+                .environment(adminModel)
                 .environment(weeklyPaydownModel)
                 .environment(logsModel)
                 .environment(notificationsModel)

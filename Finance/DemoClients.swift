@@ -13,6 +13,9 @@ struct DemoKeychainClient: KeychainClientProtocol {
     func savePassword(_ password: String) throws {}
     func getPassword() -> String? { "demo" }
     func deletePassword() throws {}
+    func saveAdminPassword(_ password: String) throws {}
+    func getAdminPassword() -> String? { nil }
+    func deleteAdminPassword() throws {}
 }
 
 struct DemoFinanceSyncClient: FinanceSyncClientProtocol {

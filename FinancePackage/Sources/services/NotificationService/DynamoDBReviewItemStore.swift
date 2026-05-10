@@ -45,6 +45,15 @@ public struct DynamoDBReviewItemStore: ReviewItemStoreProtocol {
         return (response.items ?? []).compactMap { parseItem($0) }
     }
 
+    public func fetchAll() async throws -> [ReviewItem] {
+        let response = try await db.scan(.init(
+            expressionAttributeValues: [":t": .s("reviewItem")],
+            filterExpression: "recordType = :t",
+            tableName: tableName
+        ))
+        return (response.items ?? []).compactMap { parseItem($0) }
+    }
+
     public func resolve(id: String, status: ReviewItem.Status) async throws {
         let now = ISO8601DateFormatter().string(from: Date())
         _ = try await db.updateItem(.init(
@@ -55,6 +64,13 @@ public struct DynamoDBReviewItemStore: ReviewItemStoreProtocol {
             key: ["id": .s(id)],
             tableName: tableName,
             updateExpression: "SET itemStatus = :s, resolvedAt = :r"
+        ))
+    }
+
+    public func delete(id: String) async throws {
+        _ = try await db.deleteItem(.init(
+            key: ["id": .s(id)],
+            tableName: tableName
         ))
     }
 

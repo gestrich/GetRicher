@@ -145,7 +145,10 @@ Expand `CLIApp` from a single `invoke` command to a full-featured CLI that mirro
 - Remove the old `invoke` command or keep it alongside as a dev/debug utility
 - Update `Package.swift` if new dependencies are needed (none expected; `ArgumentParser` already included)
 
-## - [ ] Phase 6: Admin Endpoints + iOS Admin UI
+## - [x] Phase 6: Admin Endpoints + iOS Admin UI
+
+**Skills used**: `agent-orientation` (docs orientation), `/swift-architecture` (code placement conventions derived from reading existing store and Lambda handler files), `/swift-swiftui` (SwiftUI patterns derived from reading existing views and models)
+**Principles applied**: Extended five store protocols (`UserStoreProtocol`, `ReviewItemStoreProtocol`, `AccountStoreProtocol`, `TransactionStoreProtocol`, `DeviceTokenStoreProtocol`) with delete/fetchAll methods, adding DynamoDB and logging stubs for each. Admin authentication uses `ADMIN_PASSWORD_HASH` env var compared via `UserAccount.hashPassword`. All six admin Lambda routes follow the existing if-else routing pattern with path parameter extraction via `dropFirst`/`dropLast`. Added `AdminUserInfo`/`AdminErrorsResponse` public types to `ClientService`. Admin Keychain credentials added to `KeychainClientProtocol`. iOS admin UI uses `@Observable @MainActor AdminModel` with `AdminUsersView`, `AdminReportsView`, `AdminErrorsView` injected through the environment. Admin section in `SettingsView` gated on `adminModel.hasAdminAccess`. CLI uses nested `AdminCommand` group with `AdminCLIConfiguration` for shared options.
 
 **Skills to read**: `/swift-architecture`, `/swift-swiftui`
 

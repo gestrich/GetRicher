@@ -77,4 +77,11 @@ public struct DynamoDBUserStore: UserStoreProtocol {
             updateExpression: "SET lunchMoneyToken = :token"
         ))
     }
+
+    public func delete(username: String) async throws {
+        _ = try await db.deleteItem(.init(
+            key: ["id": .s(username)],
+            tableName: tableName
+        ))
+    }
 }

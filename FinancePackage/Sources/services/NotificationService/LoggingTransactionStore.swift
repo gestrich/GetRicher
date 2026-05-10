@@ -11,4 +11,8 @@ public struct LoggingTransactionStore: TransactionStoreProtocol {
         print("[TransactionStore] STUB fetch userId=\(userId) start=\(startDate) end=\(endDate) -> []")
         return []
     }
+
+    public func deleteAll(userId: String) async throws {
+        print("[TransactionStore] STUB deleteAll userId=\(userId)")
+    }
 }

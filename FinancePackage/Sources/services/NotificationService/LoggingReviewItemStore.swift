@@ -12,7 +12,16 @@ public struct LoggingReviewItemStore: ReviewItemStoreProtocol {
         return []
     }
 
+    public func fetchAll() async throws -> [ReviewItem] {
+        print("[ReviewItemStore] STUB fetchAll -> []")
+        return []
+    }
+
     public func resolve(id: String, status: ReviewItem.Status) async throws {
         print("[ReviewItemStore] STUB resolve id=\(id) status=\(status.rawValue)")
+    }
+
+    public func delete(id: String) async throws {
+        print("[ReviewItemStore] STUB delete id=\(id)")
     }
 }

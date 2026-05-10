@@ -4,7 +4,10 @@ struct SettingsView: View {
     @Environment(SettingsModel.self) var settingsModel
     @Environment(NotificationsModel.self) var notificationsModel
     @Environment(UserAccountModel.self) var userAccountModel
+    @Environment(AdminModel.self) var adminModel
     @State private var reportSent = false
+    @State private var showAdminLogin = false
+    @State private var pendingAdminPassword = ""
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -110,12 +113,67 @@ struct SettingsView: View {
                         LogsView()
                     }
                 }
+
+                if adminModel.hasAdminAccess {
+                    Section("Admin") {
+                        NavigationLink("Users") {
+                            AdminUsersView()
+                                .environment(adminModel)
+                                .environment(settingsModel)
+                        }
+                        NavigationLink("Reports") {
+                            AdminReportsView()
+                                .environment(adminModel)
+                                .environment(settingsModel)
+                        }
+                        NavigationLink("Errors") {
+                            AdminErrorsView()
+                                .environment(adminModel)
+                                .environment(settingsModel)
+                        }
+                        Button("Sign Out Admin", role: .destructive) {
+                            adminModel.signOutAdmin()
+                        }
+                    }
+                } else {
+                    Section("Admin") {
+                        Button("Admin Sign In") {
+                            pendingAdminPassword = ""
+                            showAdminLogin = true
+                        }
+                    }
+                }
             }
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showAdminLogin) {
+                NavigationStack {
+                    Form {
+                        Section("Admin Password") {
+                            SecureField("Password", text: $pendingAdminPassword)
+                                .textContentType(.password)
+                        }
+                    }
+                    .navigationTitle("Admin Sign In")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showAdminLogin = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Sign In") {
+                                @Bindable var admin = adminModel
+                                adminModel.adminPassword = pendingAdminPassword
+                                adminModel.saveAdminCredentials()
+                                showAdminLogin = false
+                            }
+                            .disabled(pendingAdminPassword.isEmpty)
+                        }
                     }
                 }
             }
