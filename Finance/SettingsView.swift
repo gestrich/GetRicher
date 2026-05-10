@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(SettingsModel.self) var settingsModel
     @Environment(NotificationsModel.self) var notificationsModel
+    @Environment(UserAccountModel.self) var userAccountModel
     @State private var apiToken: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -82,6 +83,36 @@ struct SettingsView: View {
                     Text("Backend")
                 } footer: {
                     Text("API Gateway URL for push notification device token registration.")
+                }
+
+                Section {
+                    if userAccountModel.isRegistered {
+                        LabeledContent("Username", value: userAccountModel.username)
+                        Button("Sign Out", role: .destructive) {
+                            userAccountModel.signOut()
+                        }
+                    } else {
+                        @Bindable var account = userAccountModel
+                        TextField("Username", text: $account.username)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .textContentType(.username)
+                        SecureField("Password", text: $account.password)
+                            .textContentType(.newPassword)
+                        Button("Register") {
+                            Task { await userAccountModel.register(backendURL: settingsModel.backendURL) }
+                        }
+                        .disabled(userAccountModel.username.isEmpty || userAccountModel.password.isEmpty)
+                        if let error = userAccountModel.errorMessage {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.footnote)
+                        }
+                    }
+                } header: {
+                    Text("Account")
+                } footer: {
+                    Text("Register to receive push notifications for your account.")
                 }
 
                 Section("Management") {

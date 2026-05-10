@@ -15,6 +15,12 @@ final class NotificationsModel {
 
     var state: State = .idle
 
+    private let userAccountModel: UserAccountModel
+
+    init(userAccountModel: UserAccountModel) {
+        self.userAccountModel = userAccountModel
+    }
+
     var registeredToken: String? {
         if case .registered(let token) = state { return token }
         return nil
@@ -45,6 +51,11 @@ final class NotificationsModel {
     }
 
     func sendTokenToBackend(_ token: String) async {
+        guard userAccountModel.isRegistered,
+              !userAccountModel.username.isEmpty,
+              !userAccountModel.password.isEmpty
+        else { return }
+
         guard let rawURL = UserDefaults.standard.string(forKey: "backendURL"),
               !rawURL.isEmpty,
               let url = URL(string: rawURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/api/device-tokens")
@@ -53,9 +64,17 @@ final class NotificationsModel {
         struct DeviceTokenRequest: Encodable {
             let token: String
             let environment: String
+            let username: String
+            let password: String
         }
 
-        guard let body = try? JSONEncoder().encode(DeviceTokenRequest(token: token, environment: "sandbox")) else { return }
+        let requestBody = DeviceTokenRequest(
+            token: token,
+            environment: "sandbox",
+            username: userAccountModel.username,
+            password: userAccountModel.password
+        )
+        guard let body = try? JSONEncoder().encode(requestBody) else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

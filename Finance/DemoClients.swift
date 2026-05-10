@@ -6,6 +6,12 @@ struct DemoKeychainClient: KeychainClientProtocol {
     func saveAPIToken(_ token: String) throws {}
     func getAPIToken() -> String? { "demo-token" }
     func deleteAPIToken() throws {}
+    func saveUsername(_ username: String) throws {}
+    func getUsername() -> String? { nil }
+    func deleteUsername() throws {}
+    func savePassword(_ password: String) throws {}
+    func getPassword() -> String? { nil }
+    func deletePassword() throws {}
 }
 
 struct DemoLunchMoneyClient: LunchMoneyClientProtocol {

@@ -11,9 +11,10 @@ struct FinanceApp: App {
 
     @State private var transactionsModel: TransactionsModel
     @State private var settingsModel: SettingsModel
+    @State private var userAccountModel: UserAccountModel
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
     @State private var logsModel = LogsModel()
-    @State private var notificationsModel = NotificationsModel()
+    @State private var notificationsModel: NotificationsModel
     @State private var reviewInboxModel = ReviewInboxModel()
     @State private var lastModeChangeCount: Int = 0
 
@@ -50,6 +51,9 @@ struct FinanceApp: App {
             pageSize: pageSize
         ))
         _settingsModel = State(initialValue: SettingsModel(keychainClient: keychainClient))
+        let userAccountModel = UserAccountModel(keychainClient: keychainClient)
+        _userAccountModel = State(initialValue: userAccountModel)
+        _notificationsModel = State(initialValue: NotificationsModel(userAccountModel: userAccountModel))
 
         do {
             modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferRule.self)
@@ -63,6 +67,7 @@ struct FinanceApp: App {
             ContentView()
                 .environment(transactionsModel)
                 .environment(settingsModel)
+                .environment(userAccountModel)
                 .environment(weeklyPaydownModel)
                 .environment(logsModel)
                 .environment(notificationsModel)

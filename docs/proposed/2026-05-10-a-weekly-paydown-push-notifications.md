@@ -144,7 +144,10 @@ Wire `UserStoreProtocol` through `main()` and `handle()` the same way `DeviceTok
 
 ---
 
-## - [ ] Phase 3: iOS — Registration UI & Credential-Aware Token Registration
+## - [x] Phase 3: iOS — Registration UI & Credential-Aware Token Registration
+
+**Skills used**: `swift-app-architecture:swift-swiftui`
+**Principles applied**: Added `saveUsername`/`getUsername`/`deleteUsername`/`savePassword`/`getPassword`/`deletePassword` methods to `KeychainClientProtocol` with private helper methods in `KeychainClient` to eliminate duplication. Created `UserAccountModel` (`@Observable @MainActor`) with `keychainClient` injected at init, following the existing `SettingsModel` pattern. Stored `UserAccountModel` as a direct dependency on `NotificationsModel` (passed at init) so `handleDeviceToken` can access credentials without needing `@Environment`. Added Account section to `SettingsView` showing registration form (username/password + Register button) or signed-in state (username + Sign Out button) based on `isRegistered`. A 409 response on register is treated as "already registered" and saves credentials, supporting re-registration on a new device.
 
 **Skills to read**: `swift-app-architecture:swift-swiftui`
 
