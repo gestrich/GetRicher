@@ -4,6 +4,7 @@ import PackageDescription
 
 var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     .package(url: "https://github.com/swift-server/swift-aws-lambda-runtime.git", "2.0.0"..<"3.0.0"),
     .package(url: "https://github.com/swift-server/swift-aws-lambda-events.git", from: "0.5.0"),
     .package(url: "https://github.com/soto-project/soto.git", from: "7.10.0"),
@@ -27,6 +28,9 @@ var targets: [Target] = [
     // SDKs Layer
     .target(
         name: "FinanceCoreSDK",
+        dependencies: [
+            .product(name: "Crypto", package: "swift-crypto"),
+        ],
         path: "Sources/sdks/FinanceCoreSDK"
     ),
     .target(

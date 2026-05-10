@@ -10,15 +10,21 @@ public struct DynamoDBDeviceTokenStore: DeviceTokenStoreProtocol {
     }
 
     public func store(_ token: DeviceToken) async throws {
+        var values: [String: DynamoDB.AttributeValue] = [
+            ":recordType": .s("deviceToken"),
+            ":environment": .s(token.environment),
+            ":createdAt": .s(token.createdAt)
+        ]
+        var expression = "SET recordType = :recordType, environment = :environment, createdAt = :createdAt"
+        if let userId = token.userId {
+            values[":userId"] = .s(userId)
+            expression += ", userId = :userId"
+        }
         _ = try await db.updateItem(.init(
-            expressionAttributeValues: [
-                ":recordType": .s("deviceToken"),
-                ":environment": .s(token.environment),
-                ":createdAt": .s(token.createdAt)
-            ],
+            expressionAttributeValues: values,
             key: ["id": .s(token.id)],
             tableName: tableName,
-            updateExpression: "SET recordType = :recordType, environment = :environment, createdAt = :createdAt"
+            updateExpression: expression
         ))
     }
 
@@ -34,7 +40,8 @@ public struct DynamoDBDeviceTokenStore: DeviceTokenStoreProtocol {
                 let env = item["environment"]?.s,
                 let created = item["createdAt"]?.s
             else { return nil }
-            return DeviceToken(tokenString: id, environment: env, createdAt: created)
+            let userId = item["userId"]?.s
+            return DeviceToken(tokenString: id, environment: env, createdAt: created, userId: userId)
         }
     }
 }

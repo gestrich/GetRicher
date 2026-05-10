@@ -77,7 +77,10 @@ The `Package.swift` `ReportingService` target needs `CryptoKit` only if we add h
 
 ---
 
-## - [ ] Phase 2: User Account System (FinancePackage + Lambda)
+## - [x] Phase 2: User Account System (FinancePackage + Lambda)
+
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Added `UserAccount` domain model to `FinanceCoreSDK` with SHA-256 hashing via `#if canImport(CryptoKit)/import Crypto` for Linux compatibility. Added `swift-crypto` as an explicit Package.swift dependency. Added `userId: String?` to `DeviceToken`. Followed the existing `DeviceTokenStoreProtocol`/`DynamoDBDeviceTokenStore`/`LoggingDeviceTokenStore` pattern to create `UserStoreProtocol`, `DynamoDBUserStore` (using `getItem` with username as PK), and `LoggingUserStore`. Updated `DynamoDBDeviceTokenStore` to conditionally write and read `userId`. Added `POST /api/users/register` (409 on duplicate) and updated `POST /api/device-tokens` to require and validate `username`/`password`, storing token with `userId`. Wired `userStore` through `main()`, `handle()`, and `handleAPIGateway()` following the existing store injection pattern.
 
 **Skills to read**: `swift-app-architecture:swift-architecture`
 

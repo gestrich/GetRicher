@@ -19,6 +19,7 @@ struct GetRicherLambda {
             let secretsClient = EnvironmentSecretsClient()
             let tokenStore: any DeviceTokenStoreProtocol = LoggingDeviceTokenStore()
             let reviewItemStore: any ReviewItemStoreProtocol = LoggingReviewItemStore()
+            let userStore: any UserStoreProtocol = LoggingUserStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
                 let lunchMoneyToken = try await secretsClient.secret(named: "LUNCH_MONEY_TOKEN")
@@ -29,6 +30,7 @@ struct GetRicherLambda {
                     context: context,
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
+                    userStore: userStore,
                     notificationClient: notificationClient
                 )
             }
@@ -38,6 +40,7 @@ struct GetRicherLambda {
             let secretsClient = AWSSecretsClient(awsClient: awsClient, region: region)
             let tokenStore = DynamoDBDeviceTokenStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let reviewItemStore = DynamoDBReviewItemStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let userStore = DynamoDBUserStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let snsAppArn = ProcessInfo.processInfo.environment["SNS_PLATFORM_ARN"] ?? ""
             let notificationClient: any PushNotificationClientProtocol = snsAppArn.isEmpty
                 ? LoggingPushNotificationClient()
@@ -51,6 +54,7 @@ struct GetRicherLambda {
                     context: context,
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
+                    userStore: userStore,
                     notificationClient: notificationClient
                 )
             }
@@ -66,6 +70,7 @@ struct GetRicherLambda {
         context: LambdaContext,
         tokenStore: any DeviceTokenStoreProtocol,
         reviewItemStore: any ReviewItemStoreProtocol,
+        userStore: any UserStoreProtocol,
         notificationClient: any PushNotificationClientProtocol
     ) async throws -> APIGatewayResponse {
         do {
@@ -78,6 +83,7 @@ struct GetRicherLambda {
                     context: context,
                     tokenStore: tokenStore,
                     reviewItemStore: reviewItemStore,
+                    userStore: userStore,
                     notificationClient: notificationClient
                 )
             case .scheduled:
@@ -108,10 +114,13 @@ struct GetRicherLambda {
         context: LambdaContext,
         tokenStore: any DeviceTokenStoreProtocol,
         reviewItemStore: any ReviewItemStoreProtocol,
+        userStore: any UserStoreProtocol,
         notificationClient: any PushNotificationClientProtocol
     ) async throws -> APIGatewayResponse {
-        if request.httpMethod == .post && request.path == "/api/device-tokens" {
-            return try await handleDeviceTokenRegistration(event: request, tokenStore: tokenStore, context: context)
+        if request.httpMethod == .post && request.path == "/api/users/register" {
+            return try await handleUserRegistration(event: request, userStore: userStore, context: context)
+        } else if request.httpMethod == .post && request.path == "/api/device-tokens" {
+            return try await handleDeviceTokenRegistration(event: request, tokenStore: tokenStore, userStore: userStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/low-balance-check" {
             return try await handleLowBalanceCheck(
                 lunchMoneyToken: lunchMoneyToken,
@@ -141,9 +150,42 @@ struct GetRicherLambda {
         }
     }
 
+    private static func handleUserRegistration(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(UserRegistrationRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        if try await userStore.find(username: request.username) != nil {
+            return APIGatewayResponse(
+                statusCode: .conflict,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Username already exists"}"#
+            )
+        }
+        let user = UserAccount(username: request.username, passwordHash: UserAccount.hashPassword(request.password))
+        try await userStore.create(user)
+        context.logger.info("Registered user: \(user.username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
     private static func handleDeviceTokenRegistration(
         event: APIGatewayRequest,
         tokenStore: any DeviceTokenStoreProtocol,
+        userStore: any UserStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
         guard let bodyString = event.body,
@@ -156,9 +198,18 @@ struct GetRicherLambda {
                 body: #"{"error":"Missing or invalid body"}"#
             )
         }
-        let token = DeviceToken(tokenString: request.token, environment: request.environment)
+        guard let user = try await userStore.find(username: request.username),
+              UserAccount.hashPassword(request.password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        let token = DeviceToken(tokenString: request.token, environment: request.environment, userId: request.username)
         try await tokenStore.store(token)
-        context.logger.info("Stored device token: \(token.id)")
+        context.logger.info("Stored device token: \(token.id) for user: \(request.username)")
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
@@ -399,9 +450,16 @@ struct GetRicherLambda {
 
 // MARK: - Private types
 
+private struct UserRegistrationRequest: Decodable {
+    let username: String
+    let password: String
+}
+
 private struct DeviceTokenRequest: Decodable {
     let token: String
     let environment: String
+    let username: String
+    let password: String
 }
 
 private struct ResolveRequest: Decodable {
