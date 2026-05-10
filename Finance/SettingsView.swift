@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(UserAccountModel.self) var userAccountModel
     @Environment(AdminModel.self) var adminModel
     @State private var reportSent = false
+    @State private var reportGenerated = false
     @State private var accountFormMode: AccountFormMode = .login
     @AppStorage("adminUnlocked") private var adminUnlocked: Bool = false
 
@@ -131,6 +132,24 @@ struct SettingsView: View {
 
                 Section {
                     if adminUnlocked {
+                        Button("Generate Report Now") {
+                            reportGenerated = false
+                            Task {
+                                await adminModel.generateReport(backendURL: settingsModel.backendURL)
+                                if adminModel.errorMessage == nil {
+                                    reportGenerated = true
+                                }
+                            }
+                        }
+                        if reportGenerated {
+                            Label("Report generated!", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                        if let error = adminModel.errorMessage {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.footnote)
+                        }
                         NavigationLink("Users") {
                             AdminUsersView()
                                 .environment(adminModel)

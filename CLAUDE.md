@@ -112,7 +112,37 @@ When using `xcresulttool`, test IDs use the format: `GetRicherUITests/testMethod
 
 ## Deployment & Infrastructure
 
-See [docs/deployment.md](docs/deployment.md) for the full deployment guide. Key things to know when touching Lambda, CDK, or GitHub Actions:
+See [docs/deployment.md](docs/deployment.md) for the full deployment guide.
+
+### How deployment works
+
+Deployment is fully automated via GitHub Actions:
+
+- **Trigger:** Any push to `main` automatically runs `.github/workflows/deploy_dev.yml`, which calls the reusable `.github/workflows/deploy.yml`
+- **Steps:** Docker builds `LambdaApp` for `linux/amd64`, then `cdk deploy` updates the CloudFormation stack (Lambda + API Gateway + IAM)
+- **No manual CDK or `aws lambda update-function-code` needed** — CDK handles it all
+
+### Checking what's deployed
+
+```bash
+# See the last commit that's live in production
+git log origin/main --oneline | head -5
+
+# Confirm the Lambda's last deployment timestamp
+aws lambda get-function \
+  --function-name get-richer \
+  --profile production \
+  --query 'Configuration.{LastModified:LastModified,CodeSha256:CodeSha256}' \
+  --output json
+```
+
+If `git log origin/main` is behind `git log`, **those commits are not deployed**. Push to `main` to trigger a deploy.
+
+### Triggering a manual deploy
+
+The workflow supports `workflow_dispatch`, so you can trigger it from the GitHub Actions UI without a new commit. Otherwise, just push to `main`.
+
+### Known gotchas
 
 - GitHub Actions needs `permissions: id-token: write` in the *calling* workflow for OIDC to pass through to a reusable workflow
 - Do not use `if: success()` on a job that has a `uses:` key — GitHub forbids it and fails with `startup_failure`
@@ -142,7 +172,7 @@ fields @timestamp, severity, body
 ```bash
 aws logs filter-log-events \
   --log-group-name /getricher/ios \
-  --log-stream-name <username> \
+  --log-stream-names <username> \
   --filter-pattern ERROR \
   --profile production \
   --start-time $(date -v-1H +%s000) \

@@ -54,4 +54,14 @@ public struct WeeklyPaydownReport {
             }
             .joined(separator: " | ")
     }
+
+    /// Formats reports using periodSpending (posted + pending in period) instead of the balance-based adjustedSpending.
+    public static func weeklySpendingBody(from reports: [AccountPaydownReport]) -> String {
+        reports
+            .map { report in
+                let formatted = String(format: "$%.2f", report.calculation.periodSpending)
+                return "\(report.account.displayName): \(formatted)"
+            }
+            .joined(separator: " | ")
+    }
 }

@@ -476,16 +476,7 @@ struct GetRicherLambda {
             )
         }
 
-        let range = PaydownDateRange.compute(pivotDay: pivotDay)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let fetchEndDate: String
-        if let rangeEndDate = dateFormatter.date(from: range.end),
-           let extended = Calendar.current.date(byAdding: .day, value: 7, to: rangeEndDate) {
-            fetchEndDate = dateFormatter.string(from: extended)
-        } else {
-            fetchEndDate = range.end
-        }
+        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay)
 
         let limit = 500
         var offset = 0
@@ -495,7 +486,7 @@ struct GetRicherLambda {
                 token: lunchMoneyToken,
                 accountId: nil,
                 startDate: range.start,
-                endDate: fetchEndDate,
+                endDate: range.end,
                 limit: limit,
                 offset: offset
             )
@@ -505,8 +496,8 @@ struct GetRicherLambda {
         }
 
         let transactions = allTransactionDTOs.map { $0.toDomain() }
-        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, pivotDay: pivotDay)
-        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, dateRange: range)
+        let body = WeeklyPaydownReport.weeklySpendingBody(from: reports)
         let notificationBody = body.isEmpty ? "No credit accounts found" : body
 
         return (accounts: accounts, notificationBody: notificationBody)
@@ -521,22 +512,12 @@ struct GetRicherLambda {
         let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
         let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
 
-        let range = PaydownDateRange.compute(pivotDay: pivotDay)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let fetchEndDate: String
-        if let rangeEndDate = dateFormatter.date(from: range.end),
-           let extended = Calendar.current.date(byAdding: .day, value: 7, to: rangeEndDate) {
-            fetchEndDate = dateFormatter.string(from: extended)
-        } else {
-            fetchEndDate = range.end
-        }
-
+        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay)
         let accounts = try await accountStore.fetchAll(userId: userId)
-        let transactions = try await transactionStore.fetch(userId: userId, startDate: range.start, endDate: fetchEndDate)
+        let transactions = try await transactionStore.fetch(userId: userId, startDate: range.start, endDate: range.end)
 
-        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, pivotDay: pivotDay)
-        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, dateRange: range)
+        let body = WeeklyPaydownReport.weeklySpendingBody(from: reports)
         let notificationBody = body.isEmpty ? "No credit accounts found" : body
 
         return (accounts: accounts, notificationBody: notificationBody)
@@ -560,7 +541,7 @@ struct GetRicherLambda {
         let item = ReviewItem(
             id: UUID().uuidString,
             kind: .funAccountBalance,
-            title: "Daily Paydown Report",
+            title: "Weekly Spending Report",
             summary: summaryText,
             status: .pending,
             createdAt: now
@@ -570,7 +551,7 @@ struct GetRicherLambda {
         let tokens = try await tokenStore.fetchAll()
         if !tokens.isEmpty {
             let payload = NotificationPayload(
-                title: "Weekly Paydown Report",
+                title: "Weekly Spending Report",
                 body: summaryText,
                 data: ["deepLink": "inbox"]
             )
@@ -800,7 +781,7 @@ struct GetRicherLambda {
         var notificationsSent = 0
         if !userTokens.isEmpty {
             let payload = NotificationPayload(
-                title: "Weekly Paydown Report",
+                title: "Weekly Spending Report",
                 body: summaryText,
                 data: ["deepLink": "inbox"]
             )

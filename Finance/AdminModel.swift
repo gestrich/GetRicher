@@ -1,5 +1,6 @@
 import ClientService
 import FinanceCoreSDK
+import Foundation
 import LoggingSDK
 import Observation
 
@@ -77,6 +78,19 @@ final class AdminModel {
             reports.removeAll { $0.id == id }
         } catch {
             logger.error("Admin: delete report \(id) failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func generateReport(backendURL: String) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        logger.info("Admin: generate report")
+        do {
+            _ = try await APIClient(baseURL: backendURL).generateReport()
+        } catch {
+            logger.error("Admin: generate report failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

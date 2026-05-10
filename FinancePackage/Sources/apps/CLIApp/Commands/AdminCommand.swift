@@ -17,33 +17,22 @@ struct AdminCommand: AsyncParsableCommand {
     )
 }
 
-struct AdminCLIConfiguration: ParsableArguments {
-    @OptionGroup var config: CLIConfiguration
-
-    @Option(name: .long, help: "Admin password")
-    var adminPassword: String = ProcessInfo.processInfo.environment["GETRICHER_ADMIN_PASSWORD"] ?? ""
-}
-
 struct AdminListUsersCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list-users",
         abstract: "List all registered users"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let users = try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            return try await client.adminListUsers(adminPassword: adminPassword)
+            return try await client.adminListUsers()
         }.value
         if users.isEmpty {
             print("No users found.")
@@ -62,24 +51,20 @@ struct AdminDeleteUserCommand: AsyncParsableCommand {
         abstract: "Delete a user and all their data"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     @Argument(help: "Username to delete")
     var username: String
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let usernameToDelete = username
         try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            try await client.adminDeleteUser(username: usernameToDelete, adminPassword: adminPassword)
+            try await client.adminDeleteUser(username: usernameToDelete)
         }.value
         print("Deleted user: \(username)")
     }
@@ -91,20 +76,16 @@ struct AdminListReportsCommand: AsyncParsableCommand {
         abstract: "List all review items across all users"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let reports = try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            return try await client.adminListReports(adminPassword: adminPassword)
+            return try await client.adminListReports()
         }.value
         if reports.isEmpty {
             print("No reports found.")
@@ -122,24 +103,20 @@ struct AdminDeleteReportCommand: AsyncParsableCommand {
         abstract: "Delete a specific review item"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     @Argument(help: "Report ID to delete")
     var reportId: String
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let id = reportId
         try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            try await client.adminDeleteReport(id: id, adminPassword: adminPassword)
+            try await client.adminDeleteReport(id: id)
         }.value
         print("Deleted report: \(reportId)")
     }
@@ -151,7 +128,7 @@ struct AdminUpdateLMTokenCommand: AsyncParsableCommand {
         abstract: "Update a user's Lunch Money token"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     @Argument(help: "Username")
     var username: String
@@ -160,19 +137,15 @@ struct AdminUpdateLMTokenCommand: AsyncParsableCommand {
     var lmToken: String
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let usernameArg = username
         let tokenArg = lmToken
         try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            try await client.adminUpdateLMToken(username: usernameArg, lmToken: tokenArg, adminPassword: adminPassword)
+            try await client.adminUpdateLMToken(username: usernameArg, lmToken: tokenArg)
         }.value
         print("Updated LM token for user: \(username)")
     }
@@ -184,20 +157,16 @@ struct AdminErrorsCommand: AsyncParsableCommand {
         abstract: "Fetch recent Lambda errors"
     )
 
-    @OptionGroup var adminConfig: AdminCLIConfiguration
+    @OptionGroup var config: CLIConfiguration
 
     mutating func run() async throws {
-        guard !adminConfig.config.baseURL.isEmpty else {
+        guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
-        guard !adminConfig.adminPassword.isEmpty else {
-            throw ValidationError("--admin-password is required (or set GETRICHER_ADMIN_PASSWORD)")
-        }
-        let baseURL = adminConfig.config.baseURL
-        let adminPassword = adminConfig.adminPassword
+        let baseURL = config.baseURL
         let response = try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            return try await client.adminErrors(adminPassword: adminPassword)
+            return try await client.adminErrors()
         }.value
         if !response.message.isEmpty {
             print("Status: \(response.message)")

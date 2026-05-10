@@ -6,17 +6,22 @@ public struct PaydownCalculation: Sendable {
     public let pendingAdjustment: Double
     public let postPeriodAdjustment: Double
     public let adjustedSpending: Double
+    /// Sum of all transactions in the period (posted + pending), net of refunds.
+    /// This is the direct measure of what was spent in the period.
+    public let periodSpending: Double
 
     public init(
         currentBalance: Double,
         pendingAdjustment: Double,
         postPeriodAdjustment: Double,
-        adjustedSpending: Double
+        adjustedSpending: Double,
+        periodSpending: Double
     ) {
         self.currentBalance = currentBalance
         self.pendingAdjustment = pendingAdjustment
         self.postPeriodAdjustment = postPeriodAdjustment
         self.adjustedSpending = adjustedSpending
+        self.periodSpending = periodSpending
     }
 
     public static func compute(
@@ -31,11 +36,13 @@ public struct PaydownCalculation: Sendable {
         let postPeriodTotal = postPeriodClearedTransactions
             .reduce(0.0) { $0 + abs($1.toBase) }
         let adjusted = balance + pendingTotal - postPeriodTotal
+        let periodSpending = periodTransactions.reduce(0.0) { $0 + $1.toBase }
         return PaydownCalculation(
             currentBalance: balance,
             pendingAdjustment: pendingTotal,
             postPeriodAdjustment: postPeriodTotal,
-            adjustedSpending: adjusted
+            adjustedSpending: adjusted,
+            periodSpending: periodSpending
         )
     }
 }
