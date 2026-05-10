@@ -9,7 +9,7 @@ export const devConfig: GetRicherConfig = {
   },
 
   monitoring: {
-    scheduleExpression: 'cron(0 6 * * ? *)',
+    scheduleExpression: 'rate(1 hour)',
     releaseLookbackHours: 2160
   }
 };

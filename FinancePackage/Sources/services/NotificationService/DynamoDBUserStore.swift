@@ -29,6 +29,27 @@ public struct DynamoDBUserStore: UserStoreProtocol {
         ))
     }
 
+    public func fetchAll() async throws -> [UserAccount] {
+        let response = try await db.scan(.init(
+            expressionAttributeValues: [":t": .s("user")],
+            filterExpression: "recordType = :t",
+            tableName: tableName
+        ))
+        return (response.items ?? []).compactMap { item in
+            guard
+                let id = item["id"]?.s,
+                let passwordHash = item["passwordHash"]?.s,
+                let createdAt = item["createdAt"]?.s
+            else { return nil }
+            return UserAccount(
+                username: id,
+                passwordHash: passwordHash,
+                createdAt: createdAt,
+                lunchMoneyToken: item["lunchMoneyToken"]?.s
+            )
+        }
+    }
+
     public func find(username: String) async throws -> UserAccount? {
         let response = try await db.getItem(.init(
             key: ["id": .s(username)],

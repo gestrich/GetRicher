@@ -12,6 +12,11 @@ public struct LoggingUserStore: UserStoreProtocol {
         return nil
     }
 
+    public func fetchAll() async throws -> [UserAccount] {
+        print("[UserStore] STUB fetchAll -> []")
+        return []
+    }
+
     public func update(lunchMoneyToken: String, forUsername username: String) async throws {
         print("[UserStore] STUB update lunchMoneyToken for username=\(username)")
     }

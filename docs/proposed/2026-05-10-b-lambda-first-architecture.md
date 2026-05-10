@@ -59,7 +59,10 @@ Store each user's Lunch Money API token in DynamoDB alongside their user record,
 - Accounts: `PK = userId, SK = "account#<lunchMoneyId>"`, `recordType = "account"`
 - Transactions: `PK = userId, SK = "transaction#<id>"`, `recordType = "transaction"`, `date` attribute for range queries
 
-## - [ ] Phase 2: Lambda Hourly Data Fetch
+## - [x] Phase 2: Lambda Hourly Data Fetch
+
+**Skills used**: none (swift-architecture skill not locally available; conventions derived from reading existing store and Lambda files directly)
+**Principles applied**: Added `fetchAll()` to `UserStoreProtocol` with DynamoDB scan implementation and logging stub. Added `handleHourlyDataFetch` as a non-throwing async function that iterates all users, skips those without an LM token, syncs accounts and transactions (90-day rolling window, paginated), and logs per-user success/failure without aborting the job. The `.scheduled` branch calls `handleHourlyDataFetch` first then falls through to the existing report generation. CDK dev schedule updated from `cron(0 6 * * ? *)` to `rate(1 hour)`.
 
 **Skills to read**: `/swift-architecture`
 

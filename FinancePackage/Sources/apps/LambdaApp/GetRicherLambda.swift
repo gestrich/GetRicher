@@ -100,6 +100,13 @@ struct GetRicherLambda {
                 )
             case .scheduled:
                 context.logger.info("EventBridge scheduled trigger received")
+                await handleHourlyDataFetch(
+                    client: client,
+                    userStore: userStore,
+                    accountStore: accountStore,
+                    transactionStore: transactionStore,
+                    context: context
+                )
                 return try await handleGenerateReport(
                     lunchMoneyToken: lunchMoneyToken,
                     client: client,
@@ -345,6 +352,75 @@ struct GetRicherLambda {
             headers: ["Content-Type": "application/json"],
             body: #"{"status":"ok"}"#
         )
+    }
+
+    private static func handleHourlyDataFetch(
+        client: LunchMoneyClient,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        context: LambdaContext
+    ) async {
+        do {
+            let users = try await userStore.fetchAll()
+            context.logger.info("Hourly data fetch: processing \(users.count) user(s)")
+
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let endDate = Date()
+            let startDate = Calendar.current.date(byAdding: .day, value: -90, to: endDate) ?? endDate
+            let startDateString = dateFormatter.string(from: startDate)
+            let endDateString = dateFormatter.string(from: endDate)
+
+            for user in users {
+                guard let token = user.lunchMoneyToken else {
+                    context.logger.info("Skipping user \(user.username): no LM token")
+                    continue
+                }
+                do {
+                    let accountsResponse = try await client.fetchPlaidAccounts(token: token)
+                    let accounts = accountsResponse.plaidAccounts.map { dto in
+                        Account(
+                            lunchMoneyId: dto.id,
+                            name: dto.name,
+                            displayName: dto.displayName,
+                            type: dto.type,
+                            subtype: dto.subtype,
+                            mask: dto.mask,
+                            institutionName: dto.institutionName,
+                            status: dto.status,
+                            balance: dto.balance,
+                            currency: dto.currency
+                        )
+                    }
+                    try await accountStore.store(accounts, userId: user.username)
+
+                    let limit = 500
+                    var offset = 0
+                    var allTransactions: [Transaction] = []
+                    while true {
+                        let response = try await client.fetchTransactions(
+                            token: token,
+                            accountId: nil,
+                            startDate: startDateString,
+                            endDate: endDateString,
+                            limit: limit,
+                            offset: offset
+                        )
+                        allTransactions.append(contentsOf: response.transactions.map { $0.toDomain() })
+                        if response.transactions.count < limit { break }
+                        offset += limit
+                    }
+                    try await transactionStore.store(allTransactions, userId: user.username)
+
+                    context.logger.info("Synced user \(user.username): \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
+                } catch {
+                    context.logger.error("Failed to sync user \(user.username): \(error)")
+                }
+            }
+        } catch {
+            context.logger.error("Hourly data fetch failed to load users: \(error)")
+        }
     }
 
     private static func generatePaydownData(
