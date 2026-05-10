@@ -42,6 +42,9 @@ var targets: [Target] = [
     ),
     .target(
         name: "LunchMoneySDK",
+        dependencies: [
+            .target(name: "FinanceCoreSDK")
+        ],
         path: "Sources/sdks/LunchMoneySDK"
     ),
     .target(

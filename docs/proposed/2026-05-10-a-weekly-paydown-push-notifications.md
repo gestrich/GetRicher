@@ -188,7 +188,10 @@ In `FinanceApp.swift`, create and inject `UserAccountModel` alongside the existi
 
 ---
 
-## - [ ] Phase 4: Lambda Daily Paydown Report + CDK Schedule
+## - [x] Phase 4: Lambda Daily Paydown Report + CDK Schedule
+
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Added `FinanceCoreSDK` dependency to `LunchMoneySDK` and created `TransactionDTO+Domain.swift` with a `toDomain()` extension that maps all fields (including `tags`) to the domain `Transaction` type, mirroring the existing `PersistenceService` mapping pattern. Updated `handleGenerateReport()` to read `PIVOT_DAY` env var (defaulting to `saturday`), compute `PaydownDateRange`, paginate transaction fetches from `range.start` to `range.end + 7 days`, call `WeeklyPaydownReport.compute()`, and send the formatted paydown body as the push notification. Changed the CDK EventBridge rule from weekly (Sunday 8 AM UTC) to daily (5 AM UTC), renamed the rule to `DailyReportRule`, and added `pivotDay` prop (default `'saturday'`) injected as `PIVOT_DAY` env var.
 
 **Skills to read**: `swift-app-architecture:swift-architecture`
 

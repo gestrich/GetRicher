@@ -326,6 +326,9 @@ struct GetRicherLambda {
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
+        let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
+        let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
+
         let accountsResponse = try await client.fetchPlaidAccounts(token: lunchMoneyToken)
         let accounts = accountsResponse.plaidAccounts.map { dto in
             Account(
@@ -341,15 +344,45 @@ struct GetRicherLambda {
                 currency: dto.currency
             )
         }
-        let summary = AccountSummary(accounts: accounts)
-        let balanceLines = summary.accounts.map { "\($0.name): \($0.balance) \($0.currency)" }
-        let summaryText = balanceLines.isEmpty ? "No accounts found" : balanceLines.joined(separator: ", ")
+
+        let range = PaydownDateRange.compute(pivotDay: pivotDay)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let fetchEndDate: String
+        if let rangeEndDate = dateFormatter.date(from: range.end),
+           let extended = Calendar.current.date(byAdding: .day, value: 7, to: rangeEndDate) {
+            fetchEndDate = dateFormatter.string(from: extended)
+        } else {
+            fetchEndDate = range.end
+        }
+
+        let limit = 500
+        var offset = 0
+        var allTransactionDTOs: [TransactionDTO] = []
+        while true {
+            let response = try await client.fetchTransactions(
+                token: lunchMoneyToken,
+                accountId: nil,
+                startDate: range.start,
+                endDate: fetchEndDate,
+                limit: limit,
+                offset: offset
+            )
+            allTransactionDTOs.append(contentsOf: response.transactions)
+            if response.transactions.count < limit { break }
+            offset += limit
+        }
+
+        let transactions = allTransactionDTOs.map { $0.toDomain() }
+        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, pivotDay: pivotDay)
+        let notificationBody = WeeklyPaydownReport.notificationBody(from: reports)
+        let summaryText = notificationBody.isEmpty ? "No credit accounts found" : notificationBody
 
         let now = ISO8601DateFormatter().string(from: Date())
         let item = ReviewItem(
             id: UUID().uuidString,
             kind: .funAccountBalance,
-            title: "Weekly Account Snapshot",
+            title: "Daily Paydown Report",
             summary: summaryText,
             status: .pending,
             createdAt: now
@@ -359,13 +392,13 @@ struct GetRicherLambda {
         let tokens = try await tokenStore.fetchAll()
         if !tokens.isEmpty {
             let payload = NotificationPayload(
-                title: "Weekly Report Ready",
-                body: "Your weekly account snapshot is ready to review.",
+                title: "Weekly Paydown Report",
+                body: summaryText,
                 data: ["deepLink": "inbox"]
             )
             try await notificationClient.send(payload, to: tokens)
         }
-        context.logger.info("Generated report: stored review item \(item.id), notified \(tokens.count) device(s)")
+        context.logger.info("Generated paydown report: stored review item \(item.id), notified \(tokens.count) device(s)")
 
         struct GenerateResult: Encodable {
             let reviewItemId: String

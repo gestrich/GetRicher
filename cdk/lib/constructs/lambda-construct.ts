@@ -20,6 +20,7 @@ export interface LambdaConstructProps {
   timeout: number;
   reservedConcurrentExecutions?: number;
   snsPlatformArn?: string;
+  pivotDay?: string;
 }
 
 export class LambdaConstruct extends Construct {
@@ -47,7 +48,8 @@ export class LambdaConstruct extends Construct {
         SQS_URL: props.queue.queueUrl,
         S3_BUCKET_NAME: props.dataBucket.bucketName,
         DYNAMODB_TABLE_NAME: props.dynamoDbTable.tableName,
-        SNS_PLATFORM_ARN: props.snsPlatformArn ?? ''
+        SNS_PLATFORM_ARN: props.snsPlatformArn ?? '',
+        PIVOT_DAY: props.pivotDay ?? 'saturday'
       }
     });
 
@@ -74,12 +76,12 @@ export class LambdaConstruct extends Construct {
       resources: ['*'],
     }));
 
-    // Weekly scheduled report: every Sunday at 8:00 AM UTC
-    const weeklyReportRule = new events.Rule(this, 'WeeklyReportRule', {
-      schedule: events.Schedule.cron({ minute: '0', hour: '8', weekDay: 'SUN' }),
-      description: 'Weekly account snapshot and review item generation',
+    // Daily paydown report: every day at 5:00 AM UTC
+    const dailyReportRule = new events.Rule(this, 'DailyReportRule', {
+      schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
+      description: 'Daily paydown report and push notification',
       enabled: true
     });
-    weeklyReportRule.addTarget(new targets.LambdaFunction(this.function));
+    dailyReportRule.addTarget(new targets.LambdaFunction(this.function));
   }
 }
