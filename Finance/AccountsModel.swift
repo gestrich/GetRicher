@@ -1,6 +1,5 @@
 import Foundation
 import KeychainSDK
-import LunchMoneySDK
 import PersistenceService
 import SwiftData
 import SyncService
