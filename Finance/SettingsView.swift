@@ -119,7 +119,12 @@ struct SettingsView: View {
                         SecureField("Password", text: $account.password)
                             .textContentType(.newPassword)
                         Button("Register") {
-                            Task { await userAccountModel.register(backendURL: settingsModel.backendURL) }
+                            Task {
+                                await userAccountModel.register(backendURL: settingsModel.backendURL)
+                                if userAccountModel.isRegistered, let token = notificationsModel.registeredToken {
+                                    await notificationsModel.sendTokenToBackend(token)
+                                }
+                            }
                         }
                         .disabled(userAccountModel.username.isEmpty || userAccountModel.password.isEmpty)
                         if let error = userAccountModel.errorMessage {
