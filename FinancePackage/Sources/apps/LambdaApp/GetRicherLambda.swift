@@ -3,6 +3,9 @@ import AWSLambdaRuntime
 import Crypto
 import FinanceCoreSDK
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import HTTPTypes
 import LunchMoneySDK
 import NotificationService
