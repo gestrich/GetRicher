@@ -172,7 +172,10 @@ Add admin-only Lambda endpoints for system management and a corresponding admin 
 **CLI admin subcommands:**
 - `admin list-users`, `admin delete-user`, `admin list-reports`, `admin delete-report`, `admin update-lm-token`, `admin errors`
 
-## - [ ] Phase 7: Debug Skill + Documentation
+## - [x] Phase 7: Debug Skill + Documentation
+
+**Skills used**: none
+**Principles applied**: Created `.claude/skills/fetch-lambda-data.md` with curl examples for all key endpoints, CLI usage patterns against production, DynamoDB scan commands for verifying stored data, and common debugging patterns (errors endpoint, CloudWatch logs, local invoke server). Added the skill to the Architecture Skills table in `CLAUDE.md`. Updated `README.md` with an architecture overview and full CLI command reference.
 
 **Skills to read**: none required
 

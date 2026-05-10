@@ -14,6 +14,10 @@ This project follows the Swift app architecture defined at https://github.com/ge
 - Use when: building SwiftUI views, creating observable models, implementing state management, connecting use cases to UI
 - Err on the side of reading more referenced files than you think you need
 
+### `fetch-lambda-data` (`.claude/skills/fetch-lambda-data.md`) — Lambda Debug Guide
+- `curl` examples for all key endpoints, CLI usage against production, DynamoDB verification, and CloudWatch log inspection
+- Use when: debugging Lambda responses, verifying DynamoDB data, or testing endpoints manually
+
 ## UI Tests
 
 UI tests live in `GetRicherUITests/GetRicherUITests.swift`. Every screen in the app should have a UI test that captures a screenshot.
