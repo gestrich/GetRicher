@@ -224,7 +224,10 @@ Add a `pivotDay` prop to `LambdaConstructProps` (default `'saturday'`) and injec
 
 ---
 
-## - [ ] Phase 5: "Send Report Now" (Lambda endpoint + iOS Settings button)
+## - [x] Phase 5: "Send Report Now" (Lambda endpoint + iOS Settings button)
+
+**Skills used**: `swift-app-architecture:swift-swiftui`
+**Principles applied**: Extracted shared `generatePaydownData(lunchMoneyToken:client:context:)` helper from `handleGenerateReport()` to eliminate duplication; new `handleSendMyReport()` reuses it, validates credentials via `userStore`, filters tokens by `userId == username`, and sends only to that user's devices. Added `sendReportNow(backendURL:)` to `UserAccountModel` following the existing `register()` pattern (clears `errorMessage` before call, sets it on failure). Added "Send Report Now" button to the registered-user section of `SettingsView` with inline `@State var reportSent` confirmation label and error display.
 
 **Skills to read**: `swift-app-architecture:swift-swiftui`
 

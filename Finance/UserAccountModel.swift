@@ -75,4 +75,30 @@ final class UserAccountModel {
         password = ""
         isRegistered = false
     }
+
+    func sendReportNow(backendURL: String) async {
+        errorMessage = nil
+        let trimmedURL = backendURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !trimmedURL.isEmpty, let url = URL(string: trimmedURL + "/api/send-my-report") else {
+            errorMessage = "Invalid backend URL."
+            return
+        }
+        struct SendReportRequest: Encodable {
+            let username: String
+            let password: String
+        }
+        guard let body = try? JSONEncoder().encode(SendReportRequest(username: username, password: password)) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                errorMessage = "Failed to send report (HTTP \(httpResponse.statusCode))."
+            }
+        } catch {
+            errorMessage = "Failed to send report: \(error.localizedDescription)"
+        }
+    }
 }

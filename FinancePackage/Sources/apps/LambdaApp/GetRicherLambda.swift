@@ -143,6 +143,16 @@ struct GetRicherLambda {
                 notificationClient: notificationClient,
                 context: context
             )
+        } else if request.httpMethod == .post && request.path == "/api/send-my-report" {
+            return try await handleSendMyReport(
+                lunchMoneyToken: lunchMoneyToken,
+                client: client,
+                tokenStore: tokenStore,
+                userStore: userStore,
+                notificationClient: notificationClient,
+                event: request,
+                context: context
+            )
         } else if request.httpMethod == .post && request.path == "/api/test-push" {
             return try await handleTestPush(tokenStore: tokenStore, notificationClient: notificationClient, context: context)
         } else {
@@ -318,14 +328,11 @@ struct GetRicherLambda {
         )
     }
 
-    private static func handleGenerateReport(
+    private static func generatePaydownData(
         lunchMoneyToken: String,
         client: LunchMoneyClient,
-        reviewItemStore: any ReviewItemStoreProtocol,
-        tokenStore: any DeviceTokenStoreProtocol,
-        notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
-    ) async throws -> APIGatewayResponse {
+    ) async throws -> (accounts: [Account], notificationBody: String) {
         let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
         let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
 
@@ -375,8 +382,25 @@ struct GetRicherLambda {
 
         let transactions = allTransactionDTOs.map { $0.toDomain() }
         let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, pivotDay: pivotDay)
-        let notificationBody = WeeklyPaydownReport.notificationBody(from: reports)
-        let summaryText = notificationBody.isEmpty ? "No credit accounts found" : notificationBody
+        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        let notificationBody = body.isEmpty ? "No credit accounts found" : body
+
+        return (accounts: accounts, notificationBody: notificationBody)
+    }
+
+    private static func handleGenerateReport(
+        lunchMoneyToken: String,
+        client: LunchMoneyClient,
+        reviewItemStore: any ReviewItemStoreProtocol,
+        tokenStore: any DeviceTokenStoreProtocol,
+        notificationClient: any PushNotificationClientProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        let (accounts, summaryText) = try await generatePaydownData(
+            lunchMoneyToken: lunchMoneyToken,
+            client: client,
+            context: context
+        )
 
         let now = ISO8601DateFormatter().string(from: Date())
         let item = ReviewItem(
@@ -410,6 +434,69 @@ struct GetRicherLambda {
             accountCount: accounts.count,
             notificationsSent: tokens.count
         )
+        let data = try JSONEncoder().encode(result)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    private static func handleSendMyReport(
+        lunchMoneyToken: String,
+        client: LunchMoneyClient,
+        tokenStore: any DeviceTokenStoreProtocol,
+        userStore: any UserStoreProtocol,
+        notificationClient: any PushNotificationClientProtocol,
+        event: APIGatewayRequest,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(SendMyReportRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: request.username),
+              UserAccount.hashPassword(request.password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+
+        let (_, summaryText) = try await generatePaydownData(
+            lunchMoneyToken: lunchMoneyToken,
+            client: client,
+            context: context
+        )
+
+        let allTokens = try await tokenStore.fetchAll()
+        let userTokens = allTokens.filter { $0.userId == request.username }
+
+        var notificationsSent = 0
+        if !userTokens.isEmpty {
+            let payload = NotificationPayload(
+                title: "Weekly Paydown Report",
+                body: summaryText,
+                data: ["deepLink": "inbox"]
+            )
+            try await notificationClient.send(payload, to: userTokens)
+            notificationsSent = userTokens.count
+        }
+        context.logger.info("Sent report to user \(request.username): \(notificationsSent) device(s)")
+
+        struct SendReportResult: Encodable {
+            let status: String
+            let notificationsSent: Int
+        }
+        let result = SendReportResult(status: "ok", notificationsSent: notificationsSent)
         let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
@@ -498,6 +585,11 @@ private struct DeviceTokenRequest: Decodable {
 private struct ResolveRequest: Decodable {
     let id: String
     let status: String
+}
+
+private struct SendMyReportRequest: Decodable {
+    let username: String
+    let password: String
 }
 
 private struct LoggingDeviceTokenStore: DeviceTokenStoreProtocol {

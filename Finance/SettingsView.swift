@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(NotificationsModel.self) var notificationsModel
     @Environment(UserAccountModel.self) var userAccountModel
     @State private var apiToken: String = ""
+    @State private var reportSent = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -88,6 +89,24 @@ struct SettingsView: View {
                 Section {
                     if userAccountModel.isRegistered {
                         LabeledContent("Username", value: userAccountModel.username)
+                        Button("Send Report Now") {
+                            reportSent = false
+                            Task {
+                                await userAccountModel.sendReportNow(backendURL: settingsModel.backendURL)
+                                if userAccountModel.errorMessage == nil {
+                                    reportSent = true
+                                }
+                            }
+                        }
+                        if reportSent {
+                            Label("Sent!", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                        if let error = userAccountModel.errorMessage {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.footnote)
+                        }
                         Button("Sign Out", role: .destructive) {
                             userAccountModel.signOut()
                         }
