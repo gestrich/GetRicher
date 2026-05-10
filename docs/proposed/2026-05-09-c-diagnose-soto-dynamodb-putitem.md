@@ -77,7 +77,10 @@ Add a Soto `AWSMiddleware` that logs the raw HTTP request body before it is sent
 
 Deploy and trigger `sendTokenToBackend` from the iOS app, then read the log.
 
-## - [ ] Phase 2: Build a minimal `DynamoDBDiag` CLI target in FinancePackage
+## - [x] Phase 2: Build a minimal `DynamoDBDiag` CLI target in FinancePackage
+
+**Skills used**: none
+**Principles applied**: Added `DynamoDBDiag` as an unconditional executable target (outside the `#if os(macOS) || os(iOS)` block) since it only imports Foundation and SotoDynamoDB — both Linux-safe. Reused the existing `soto` package dependency already declared in Package.swift, adding only `SotoDynamoDB` product to the new target's dependencies.
 
 Add a new unconditional executable target `DynamoDBDiag` to `FinancePackage/Package.swift`. The target does one thing: constructs `AWSClient` from env-var credentials, calls `db.putItem` with a hardcoded test item, prints success or the error, then shuts down.
 
