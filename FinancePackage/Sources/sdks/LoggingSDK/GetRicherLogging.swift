@@ -12,12 +12,17 @@ public enum GetRicherLogging {
         return base.appendingPathComponent("GetRicher/getricher.log")
     }()
 
-    public static func bootstrap(logLevel: Logger.Level = .info) {
+    @discardableResult
+    public static func bootstrap(otelService: OTelLoggingService? = nil, logLevel: Logger.Level = .info) -> OTelLoggingService? {
         let url = defaultLogFileURL
         LoggingSystem.bootstrap { label in
-            var handler = FileLogHandler(label: label, fileURL: url)
-            handler.logLevel = logLevel
-            return handler
+            var fileHandler = FileLogHandler(label: label, fileURL: url)
+            fileHandler.logLevel = logLevel
+            if let otelService {
+                return MultiplexLogHandler([fileHandler, otelService.makeLogHandler(label: label)])
+            }
+            return fileHandler
         }
+        return otelService
     }
 }

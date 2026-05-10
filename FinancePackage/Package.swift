@@ -14,8 +14,6 @@ var dependencies: [Package.Dependency] = [
 var products: [Product] = [
     .library(name: "CoreService", targets: ["CoreService"]),
     .library(name: "FinanceCoreSDK", targets: ["FinanceCoreSDK"]),
-    .library(name: "LoggingSDK", targets: ["LoggingSDK"]),
-    .library(name: "LogsFeature", targets: ["LogsFeature"]),
     .library(name: "LunchMoneySDK", targets: ["LunchMoneySDK"]),
     .library(name: "NotificationService", targets: ["NotificationService"]),
     .library(name: "ReportingService", targets: ["ReportingService"]),
@@ -33,13 +31,6 @@ var targets: [Target] = [
             .product(name: "Crypto", package: "swift-crypto"),
         ],
         path: "Sources/sdks/FinanceCoreSDK"
-    ),
-    .target(
-        name: "LoggingSDK",
-        dependencies: [
-            .product(name: "Logging", package: "swift-log"),
-        ],
-        path: "Sources/sdks/LoggingSDK"
     ),
     .target(
         name: "LunchMoneySDK",
@@ -85,12 +76,6 @@ var targets: [Target] = [
         ],
         path: "Sources/services/SecretsService"
     ),
-    // Features Layer
-    .target(
-        name: "LogsFeature",
-        dependencies: ["LoggingSDK", "Uniflow"],
-        path: "Sources/features/LogsFeature"
-    ),
     // Test Targets (unconditional — pure Linux-safe targets)
     .testTarget(
         name: "ReportingServiceTests",
@@ -129,14 +114,32 @@ var targets: [Target] = [
 #if os(macOS) || os(iOS)
 dependencies.append(contentsOf: [
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
+    .package(url: "https://github.com/swift-otel/swift-otel.git", from: "1.0.0"),
+    .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", from: "2.0.0"),
 ])
 products.append(contentsOf: [
+    .library(name: "LoggingSDK", targets: ["LoggingSDK"]),
+    .library(name: "LogsFeature", targets: ["LogsFeature"]),
     .library(name: "KeychainSDK", targets: ["KeychainSDK"]),
     .library(name: "PersistenceService", targets: ["PersistenceService"]),
     .library(name: "SyncService", targets: ["SyncService"]),
     .executable(name: "CLIApp", targets: ["CLIApp"]),
 ])
 targets.append(contentsOf: [
+    .target(
+        name: "LoggingSDK",
+        dependencies: [
+            .product(name: "Logging", package: "swift-log"),
+            .product(name: "OTel", package: "swift-otel"),
+            .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
+        ],
+        path: "Sources/sdks/LoggingSDK"
+    ),
+    .target(
+        name: "LogsFeature",
+        dependencies: ["LoggingSDK", "Uniflow"],
+        path: "Sources/features/LogsFeature"
+    ),
     .target(
         name: "KeychainSDK",
         path: "Sources/sdks/KeychainSDK"

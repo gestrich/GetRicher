@@ -46,9 +46,10 @@ Add a Lambda route that receives OTLP log records from the iOS app and forwards 
 - CDK: add `logs:CreateLogGroup` on `arn:aws:logs:*:*:log-group:/getricher/ios`
 - The local/environment dev path (when `LUNCH_MONEY_TOKEN` is set) should route to `LoggingOTLPHandler` that just prints the OTLP body to console
 
-## - [ ] Phase 2: Add swift-otel + OTel Bootstrap in LoggingSDK
+## - [x] Phase 2: Add swift-otel + OTel Bootstrap in LoggingSDK
 
-**Skills to read**: `/swift-architecture`
+**Skills used**: `swift-architecture`
+**Principles applied**: Moved `LoggingSDK` and `LogsFeature` targets to the `#if os(macOS) || os(iOS)` block since Lambda (Linux) doesn't use them and `swift-otel` is iOS/macOS-only. Added `swift-service-lifecycle` as an explicit dependency alongside `swift-otel` because `public import ServiceLifecycle` in swift-otel's source does not re-export the module to downstream targets in Swift 6.0. `OTelLoggingService` uses `OTel.makeLoggingBackend(configuration:)` (the public multiplex-friendly API) rather than `OTel.bootstrap()`, so the caller retains control of `LoggingSystem.bootstrap`. Existing `GetRicherLogging.bootstrap()` call in `FinanceApp` continues to work unchanged (nil default for `otelService`).
 
 Add `swift-otel` as a dependency and update `LoggingSDK` to configure OTel log export.
 
