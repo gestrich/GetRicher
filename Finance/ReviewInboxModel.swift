@@ -1,5 +1,6 @@
 import FinanceCoreSDK
 import Foundation
+import LoggingSDK
 import Observation
 
 @Observable
@@ -13,6 +14,7 @@ final class ReviewInboxModel {
     }
 
     var state: State = .idle
+    private let logger = Logger(label: "GetRicher.ReviewInboxModel")
 
     var items: [ReviewItem] {
         if case .loaded(let items) = state { return items }
@@ -27,12 +29,14 @@ final class ReviewInboxModel {
             state = .loaded([])
             return
         }
+        logger.info("Load review items")
         state = .loading
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let items = try JSONDecoder().decode([ReviewItem].self, from: data)
             state = .loaded(items)
         } catch {
+            logger.error("Load review items failed: \(error.localizedDescription)")
             state = .error(error.localizedDescription)
         }
     }
@@ -42,6 +46,7 @@ final class ReviewInboxModel {
               !backendURL.isEmpty,
               let url = URL(string: backendURL + "/api/review-items/resolve")
         else { return }
+        logger.info("Resolve item \(item.id) status=\(status.rawValue)")
 
         struct ResolveRequest: Encodable {
             let id: String

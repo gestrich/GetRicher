@@ -97,9 +97,10 @@ Wire the OTel service into `FinanceApp` so it starts at launch, keeps running, a
 - In demo mode, no `OTelLoggingService` is created; `FileLogHandler` only (no change)
 - When `settingsModel.modeChangeCount` fires (mode switch), cancel the existing OTel task and restart with new credentials if applicable — this mirrors the existing `handleModeChange()` pattern
 
-## - [ ] Phase 4: Add Logging Throughout the iOS App
+## - [x] Phase 4: Add Logging Throughout the iOS App
 
-**Skills to read**: `/swift-architecture`, `/swift-swiftui`
+**Skills used**: `/swift-architecture`, `/swift-swiftui`
+**Principles applied**: Added `private let logger = Logger(label: "GetRicher.<ModelName>")` to `UserAccountModel`, `ReviewInboxModel`, `NotificationsModel`, and `AdminModel` — matching the label convention already used in `TransactionsModel`. All `catch` blocks that previously set `errorMessage` or silently discarded errors now also call `logger.error`. Every user-initiated async action logs at `.info` on entry. In `NotificationsModel.sendTokenToBackend`, converted `try?` to a proper `do-catch` to enable error logging. `TransactionsModel` was already fully logged; `AccountsModel` has no async calls so no changes needed.
 
 Add a `Logger` instance to every model and log all errors and significant user actions. Since `LoggingSDK` re-exports `swift-log`, any file that already imports `LoggingSDK` (or `Logging` directly) can add a logger with one line.
 

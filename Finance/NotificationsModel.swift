@@ -1,4 +1,5 @@
 import Foundation
+import LoggingSDK
 import Observation
 import UIKit
 import UserNotifications
@@ -14,6 +15,7 @@ final class NotificationsModel {
     }
 
     var state: State = .idle
+    private let logger = Logger(label: "GetRicher.NotificationsModel")
 
     private let userAccountModel: UserAccountModel
 
@@ -27,6 +29,7 @@ final class NotificationsModel {
     }
 
     func requestPermissionAndRegister() async {
+        logger.info("Request notification permission")
         UNUserNotificationCenter.current().delegate = UIApplication.shared.delegate as? any UNUserNotificationCenterDelegate
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
@@ -47,6 +50,7 @@ final class NotificationsModel {
     }
 
     func handleRegistrationError(_ error: Error) {
+        logger.error("Device token registration failed: \(error.localizedDescription)")
         state = .registrationFailed(error)
     }
 
@@ -79,6 +83,11 @@ final class NotificationsModel {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        _ = try? await URLSession.shared.data(for: request)
+        do {
+            _ = try await URLSession.shared.data(for: request)
+            logger.info("Device token sent to backend")
+        } catch {
+            logger.error("Send token to backend failed: \(error.localizedDescription)")
+        }
     }
 }

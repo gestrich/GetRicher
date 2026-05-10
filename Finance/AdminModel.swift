@@ -2,6 +2,7 @@ import ClientService
 import FinanceCoreSDK
 import Foundation
 import KeychainSDK
+import LoggingSDK
 import Observation
 
 @Observable
@@ -16,6 +17,7 @@ final class AdminModel {
     var errorMessage: String?
 
     private let keychainClient: any KeychainClientProtocol
+    private let logger = Logger(label: "GetRicher.AdminModel")
 
     init(keychainClient: any KeychainClientProtocol) {
         self.keychainClient = keychainClient
@@ -51,10 +53,12 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: load users")
         do {
             let client = APIClient(baseURL: backendURL)
             users = try await client.adminListUsers(adminPassword: adminPassword)
         } catch {
+            logger.error("Admin: load users failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -63,11 +67,13 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: delete user \(username)")
         do {
             let client = APIClient(baseURL: backendURL)
             try await client.adminDeleteUser(username: username, adminPassword: adminPassword)
             users.removeAll { $0.username == username }
         } catch {
+            logger.error("Admin: delete user \(username) failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -76,10 +82,12 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: update LM token for \(username)")
         do {
             let client = APIClient(baseURL: backendURL)
             try await client.adminUpdateLMToken(username: username, lmToken: lmToken, adminPassword: adminPassword)
         } catch {
+            logger.error("Admin: update LM token for \(username) failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -88,10 +96,12 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: load reports")
         do {
             let client = APIClient(baseURL: backendURL)
             reports = try await client.adminListReports(adminPassword: adminPassword)
         } catch {
+            logger.error("Admin: load reports failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -100,11 +110,13 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: delete report \(id)")
         do {
             let client = APIClient(baseURL: backendURL)
             try await client.adminDeleteReport(id: id, adminPassword: adminPassword)
             reports.removeAll { $0.id == id }
         } catch {
+            logger.error("Admin: delete report \(id) failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -113,10 +125,12 @@ final class AdminModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        logger.info("Admin: load errors")
         do {
             let client = APIClient(baseURL: backendURL)
             errors = try await client.adminErrors(adminPassword: adminPassword)
         } catch {
+            logger.error("Admin: load errors failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import KeychainSDK
+import LoggingSDK
 import Observation
 
 @Observable
@@ -11,6 +12,7 @@ final class UserAccountModel {
     var errorMessage: String?
 
     private let keychainClient: any KeychainClientProtocol
+    private let logger = Logger(label: "GetRicher.UserAccountModel")
 
     init(keychainClient: any KeychainClientProtocol) {
         self.keychainClient = keychainClient
@@ -36,6 +38,7 @@ final class UserAccountModel {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
+        logger.info("Registration attempt: \(username)")
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             if let httpResponse = response as? HTTPURLResponse {
@@ -44,10 +47,12 @@ final class UserAccountModel {
                     saveCredentials()
                     errorMessage = nil
                 default:
+                    logger.error("Registration failed (HTTP \(httpResponse.statusCode))")
                     errorMessage = "Registration failed (HTTP \(httpResponse.statusCode))."
                 }
             }
         } catch {
+            logger.error("Registration failed: \(error.localizedDescription)")
             errorMessage = "Registration failed: \(error.localizedDescription)"
         }
     }
@@ -92,12 +97,15 @@ final class UserAccountModel {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
+        logger.info("Send report triggered by user: \(username)")
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                logger.error("Send report failed (HTTP \(httpResponse.statusCode))")
                 errorMessage = "Failed to send report (HTTP \(httpResponse.statusCode))."
             }
         } catch {
+            logger.error("Send report failed: \(error.localizedDescription)")
             errorMessage = "Failed to send report: \(error.localizedDescription)"
         }
     }
