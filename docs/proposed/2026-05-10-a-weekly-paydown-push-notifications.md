@@ -30,7 +30,10 @@ This plan achieves three things:
 
 ## Phases
 
-## - [ ] Phase 1: Extract `WeeklyPaydownReport` into `ReportingService`
+## - [x] Phase 1: Extract `WeeklyPaydownReport` into `ReportingService`
+
+**Skills used**: `swift-app-architecture:swift-architecture`
+**Principles applied**: Added `AccountPaydownReport` and `WeeklyPaydownReport` value types to `ReportingService`. Exposed a `dateRange`-based overload of `compute()` alongside the `pivotDay+referenceDate` overload so `WeeklyPaydownModel` can support historical period selection while the Lambda uses the simpler pivot-day API. Removed `periodTransactions()` and `postPeriodClearedTransactions()` from `WeeklyPaydownModel`; inlined the equivalent filter in `WeeklyPaydownView` and delegated `calculation()` to `WeeklyPaydownReport.compute()`.
 
 **Skills to read**: `swift-app-architecture:swift-architecture`
 

@@ -30,12 +30,17 @@ struct WeeklyPaydownView: View {
         let domainVendors = vendors.map { $0.toDomain() }
         let domainRules = transferRules.map { $0.toDomain() }
 
+        // Period date range (shared by domain and SwiftData transaction filters)
+        let range = paydownModel.dateRange
+
         // Domain period transactions for charts and calculations
-        let periodDomainTx = paydownModel.periodTransactions(accountId: selectedAccountIdOrNil, from: domainTransactions)
+        let periodDomainTx = domainTransactions.filter { tx in
+            let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
+            return accountMatch && tx.date > range.start && tx.date <= range.end && !tx.isIncome
+        }
         let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: domainAccounts)
 
         // SwiftData period transactions for list display with detail navigation
-        let range = paydownModel.dateRange
         let periodTx = transactions.filter { tx in
             let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
             let dateMatch = tx.date > range.start && tx.date <= range.end

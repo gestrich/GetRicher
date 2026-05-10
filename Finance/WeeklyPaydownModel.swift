@@ -38,35 +38,20 @@ class WeeklyPaydownModel {
         )
     }
 
-    func periodTransactions(accountId: Int?, from transactions: [Transaction]) -> [Transaction] {
-        let range = dateRange
-        return transactions.filter { tx in
-            let accountMatch = accountId == nil || tx.plaidAccountId == accountId
-            let dateMatch = tx.date > range.start && tx.date <= range.end
-            return accountMatch && dateMatch && !tx.isIncome
-        }
-    }
-
-    func postPeriodClearedTransactions(accountId: Int?, from transactions: [Transaction]) -> [Transaction] {
-        let range = dateRange
-        return transactions.filter { tx in
-            let accountMatch = accountId == nil || tx.plaidAccountId == accountId
-            let isAfterPeriod = tx.date > range.end
-            let isPosted = !tx.isPending
-            return accountMatch && isAfterPeriod && isPosted && !tx.isIncome
-        }
-    }
-
     func calculation(
         accountId: Int?,
         accounts: [Account],
         transactions: [Transaction]
     ) -> PaydownCalculation {
-        PaydownCalculation.compute(
-            account: account(id: accountId, from: accounts),
-            periodTransactions: periodTransactions(accountId: accountId, from: transactions),
-            postPeriodClearedTransactions: postPeriodClearedTransactions(accountId: accountId, from: transactions)
+        let reports = WeeklyPaydownReport.compute(
+            accounts: accounts,
+            transactions: transactions,
+            dateRange: dateRange
         )
+        if let accountId, let report = reports.first(where: { $0.account.lunchMoneyId == accountId }) {
+            return report.calculation
+        }
+        return PaydownCalculation.compute(account: nil, periodTransactions: [], postPeriodClearedTransactions: [])
     }
 
     func transferBreakdown(
