@@ -5,8 +5,17 @@ import Foundation
 struct GetRicherCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "get-richer",
-        abstract: "CLI tool for GetRicher Lambda local development",
+        abstract: "GetRicher CLI — manage accounts, transactions, reports, and review items",
         version: "1.0.0",
-        subcommands: [InvokeCommand.self]
+        subcommands: [
+            AccountsCommand.self,
+            TransactionsCommand.self,
+            RefreshCommand.self,
+            ReportCommand.self,
+            SendReportCommand.self,
+            ReviewItemsCommand.self,
+            ResolveItemCommand.self,
+            InvokeCommand.self,
+        ]
     )
 }

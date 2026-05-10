@@ -116,7 +116,10 @@ Replace `SyncService`'s direct Lunch Money calls with Lambda API calls. iOS reta
 - Update `SettingsModel` / `SettingsView`: replace LM token input with username/password fields (if not already done in prior phases)
 - Update `DemoClients.swift` to provide demo/stub data via Lambda-shaped responses
 
-## - [ ] Phase 5: CLI Feature Parity
+## - [x] Phase 5: CLI Feature Parity
+
+**Skills used**: none (swift-architecture skill not locally available; conventions derived from reading existing CLIApp and ClientService files directly)
+**Principles applied**: Added `fetchReviewItems`, `resolveItem`, `generateReport`, and `sendReport` to `APIClient` as extensions following the existing `FinanceSyncClientProtocol` extension pattern. Created a `CLIConfiguration` ParsableArguments struct for shared `--base-url`, `--username`, `--password` options, embedded via `@OptionGroup` in each command. Each command creates `APIClient` inside `Task { @MainActor in }` to satisfy the actor isolation requirement. Kept the existing `invoke` command alongside the new subcommands as a dev/debug utility. No new Package.swift dependencies were needed.
 
 **Skills to read**: `/swift-architecture`
 

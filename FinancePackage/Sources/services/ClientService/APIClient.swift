@@ -143,6 +143,41 @@ extension APIClient: FinanceSyncClientProtocol {
     }
 }
 
+// MARK: - Review items
+
+extension APIClient {
+    public func fetchReviewItems() async throws -> [ReviewItem] {
+        let data = try await get("/api/review-items")
+        return try decodeOrThrow([ReviewItem].self, from: data)
+    }
+
+    public func resolveItem(id: String, status: String) async throws {
+        struct ResolveBody: Encodable {
+            let id: String
+            let status: String
+        }
+        let body = try JSONEncoder().encode(ResolveBody(id: id, status: status))
+        _ = try await post("/api/review-items/resolve", body: body, headers: ["Content-Type": "application/json"])
+    }
+}
+
+// MARK: - Reports
+
+extension APIClient {
+    public func generateReport() async throws -> Data {
+        return try await post("/api/generate-report", body: nil)
+    }
+
+    public func sendReport(username: String, password: String) async throws {
+        struct SendReportBody: Encodable {
+            let username: String
+            let password: String
+        }
+        let body = try JSONEncoder().encode(SendReportBody(username: username, password: password))
+        _ = try await post("/api/send-my-report", body: body, headers: ["Content-Type": "application/json"])
+    }
+}
+
 public enum APIClientMode: Sendable {
     case remote
     case local(endpoint: String)
