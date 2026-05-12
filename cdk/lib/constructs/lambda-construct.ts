@@ -92,6 +92,18 @@ export class LambdaConstruct extends Construct {
       resources: ['arn:aws:logs:*:*:log-group:/getricher/ios'],
     }));
 
+    // Hourly Lunch Money → DynamoDB sync. DynamoDB is the single source of truth
+    // for all read paths (REST API, reports). Lunch Money is only ever consulted
+    // by the sync job.
+    const hourlyRefreshRule = new events.Rule(this, 'HourlyRefreshRule', {
+      schedule: events.Schedule.cron({ minute: '0' }),
+      description: 'Hourly Lunch Money → DynamoDB sync',
+      enabled: true
+    });
+    hourlyRefreshRule.addTarget(new targets.LambdaFunction(this.function, {
+      event: events.RuleTargetInput.fromObject({ task: 'refresh' }),
+    }));
+
     // Daily paydown push: 9:00 AM UTC = 4 AM EST / 5 AM EDT.
     // (EventBridge Rule doesn't support timezones; UTC time shifts by ±1h across DST.)
     const dailyReportRule = new events.Rule(this, 'DailyReportRule', {
@@ -99,6 +111,8 @@ export class LambdaConstruct extends Construct {
       description: 'Daily weekly-paydown push notification (~5 AM Eastern)',
       enabled: true
     });
-    dailyReportRule.addTarget(new targets.LambdaFunction(this.function));
+    dailyReportRule.addTarget(new targets.LambdaFunction(this.function, {
+      event: events.RuleTargetInput.fromObject({ task: 'report' }),
+    }));
   }
 }

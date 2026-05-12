@@ -116,22 +116,49 @@ struct GetRicherLambda {
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
-            case .scheduled:
-                context.logger.info("EventBridge scheduled trigger received")
-                await handleHourlyDataFetch(
-                    client: client,
-                    userStore: userStore,
-                    accountStore: accountStore,
-                    transactionStore: transactionStore,
-                    context: context
-                )
-                return try await handleGenerateReport(
-                    lunchMoneyToken: lunchMoneyToken,
-                    client: client,
-                    tokenStore: tokenStore,
-                    notificationClient: notificationClient,
-                    context: context
-                )
+            case .scheduled(let task):
+                context.logger.info("EventBridge scheduled trigger: task=\(task ?? "<none>")")
+                switch task {
+                case "refresh":
+                    await handleHourlyDataFetch(
+                        client: client,
+                        globalLunchMoneyToken: lunchMoneyToken,
+                        userStore: userStore,
+                        accountStore: accountStore,
+                        transactionStore: transactionStore,
+                        context: context
+                    )
+                    return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
+                case "report":
+                    await handleDailyReport(
+                        userStore: userStore,
+                        accountStore: accountStore,
+                        transactionStore: transactionStore,
+                        tokenStore: tokenStore,
+                        notificationClient: notificationClient,
+                        context: context
+                    )
+                    return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
+                default:
+                    // Legacy path: run both (used by manual invokes from older clients).
+                    await handleHourlyDataFetch(
+                        client: client,
+                        globalLunchMoneyToken: lunchMoneyToken,
+                        userStore: userStore,
+                        accountStore: accountStore,
+                        transactionStore: transactionStore,
+                        context: context
+                    )
+                    await handleDailyReport(
+                        userStore: userStore,
+                        accountStore: accountStore,
+                        transactionStore: transactionStore,
+                        tokenStore: tokenStore,
+                        notificationClient: notificationClient,
+                        context: context
+                    )
+                    return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
+                }
             }
         } catch {
             context.logger.error("Handler error: \(error)")
@@ -176,26 +203,29 @@ struct GetRicherLambda {
             return try await handleResolveReviewItem(event: request, reviewItemStore: reviewItemStore, context: context)
         } else if request.httpMethod == .post && request.path == "/api/generate-report" {
             return try await handleGenerateReport(
-                lunchMoneyToken: lunchMoneyToken,
-                client: client,
+                userStore: userStore,
+                accountStore: accountStore,
+                transactionStore: transactionStore,
                 tokenStore: tokenStore,
                 notificationClient: notificationClient,
                 context: context
             )
         } else if request.httpMethod == .post && request.path == "/api/send-my-report" {
             return try await handleSendMyReport(
-                lunchMoneyToken: lunchMoneyToken,
-                client: client,
                 tokenStore: tokenStore,
                 userStore: userStore,
+                accountStore: accountStore,
+                transactionStore: transactionStore,
                 notificationClient: notificationClient,
                 event: request,
                 context: context
             )
         } else if request.httpMethod == .get && request.path == "/api/weekly-paydown" {
             return try await handleWeeklyPaydown(
-                lunchMoneyToken: lunchMoneyToken,
-                client: client,
+                event: request,
+                userStore: userStore,
+                accountStore: accountStore,
+                transactionStore: transactionStore,
                 context: context
             )
         } else if request.httpMethod == .get && request.path == "/api/accounts" {
@@ -203,7 +233,7 @@ struct GetRicherLambda {
         } else if request.httpMethod == .get && request.path == "/api/transactions" {
             return try await handleGetTransactions(event: request, userStore: userStore, transactionStore: transactionStore, context: context)
         } else if request.httpMethod == .post && request.path == "/api/refresh" {
-            return try await handleRefresh(event: request, client: client, userStore: userStore, accountStore: accountStore, transactionStore: transactionStore, context: context)
+            return try await handleRefresh(event: request, client: client, globalLunchMoneyToken: lunchMoneyToken, userStore: userStore, accountStore: accountStore, transactionStore: transactionStore, context: context)
         } else if request.httpMethod == .post && request.path == "/api/test-push" {
             return try await handleTestPush(tokenStore: tokenStore, notificationClient: notificationClient, context: context)
         } else if request.httpMethod == .get && request.path == "/api/admin/users" {
@@ -406,6 +436,7 @@ struct GetRicherLambda {
 
     private static func handleHourlyDataFetch(
         client: LunchMoneyClient,
+        globalLunchMoneyToken: String,
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
@@ -423,10 +454,8 @@ struct GetRicherLambda {
             let endDateString = dateFormatter.string(from: endDate)
 
             for user in users {
-                guard let token = user.lunchMoneyToken else {
-                    context.logger.info("Skipping user \(user.username): no LM token")
-                    continue
-                }
+                let token = user.lunchMoneyToken ?? globalLunchMoneyToken
+                let tokenSource = user.lunchMoneyToken != nil ? "per-user" : "global-fallback"
                 do {
                     let accountsResponse = try await client.fetchPlaidAccounts(token: token)
                     let accounts = accountsResponse.plaidAccounts.map { dto in
@@ -463,7 +492,7 @@ struct GetRicherLambda {
                     }
                     try await transactionStore.store(allTransactions, userId: user.username)
 
-                    context.logger.info("Synced user \(user.username): \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
+                    context.logger.info("Synced user \(user.username) [token=\(tokenSource)]: \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
                 } catch {
                     context.logger.error("Failed to sync user \(user.username): \(error)")
                 }
@@ -478,51 +507,22 @@ struct GetRicherLambda {
         return PivotDay.allCases.first { $0.rawValue.lowercased() == raw.lowercased() } ?? .saturday
     }
 
-    /// Fetches the current-period paydown directly from LunchMoney (live data).
-    /// The Lambda has no transfer rules/vendors stored, so transferBreakdown is empty —
-    /// the notification body reports gross periodSpending per credit account.
-    private static func computeCurrentPeriodPaydown(
-        lunchMoneyToken: String,
-        client: LunchMoneyClient,
+    /// Computes a user's current-period paydown from DynamoDB. DynamoDB is the single source
+    /// of truth — Lunch Money is only consulted by the hourly sync, never by report/API reads.
+    private static func computeCurrentPeriodFromDynamoDB(
+        userId: String,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         context: LambdaContext
     ) async throws -> (reports: [AccountPaydownReport], notificationBody: String) {
         let pivot = pivotDay()
-        let accountsResponse = try await client.fetchPlaidAccounts(token: lunchMoneyToken)
-        let accounts = accountsResponse.plaidAccounts.map { dto in
-            Account(
-                lunchMoneyId: dto.id,
-                name: dto.name,
-                displayName: dto.displayName,
-                type: dto.type,
-                subtype: dto.subtype,
-                mask: dto.mask,
-                institutionName: dto.institutionName,
-                status: dto.status,
-                balance: dto.balance,
-                currency: dto.currency
-            )
-        }
-
         let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot)
-
-        let limit = 500
-        var offset = 0
-        var allTransactionDTOs: [TransactionDTO] = []
-        while true {
-            let response = try await client.fetchTransactions(
-                token: lunchMoneyToken,
-                accountId: nil,
-                startDate: range.start,
-                endDate: range.end,
-                limit: limit,
-                offset: offset
-            )
-            allTransactionDTOs.append(contentsOf: response.transactions)
-            if response.transactions.count < limit { break }
-            offset += limit
-        }
-
-        let transactions = allTransactionDTOs.map { $0.toDomain() }
+        let accounts = try await accountStore.fetchAll(userId: userId)
+        let transactions = try await transactionStore.fetch(
+            userId: userId,
+            startDate: range.start,
+            endDate: range.end
+        )
         let reports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
@@ -533,45 +533,70 @@ struct GetRicherLambda {
         return (reports: reports, notificationBody: notificationBody)
     }
 
+    /// Iterates all users, computes each user's paydown from DynamoDB, and pushes to that user's devices.
+    private static func handleDailyReport(
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        tokenStore: any DeviceTokenStoreProtocol,
+        notificationClient: any PushNotificationClientProtocol,
+        context: LambdaContext
+    ) async {
+        do {
+            let users = try await userStore.fetchAll()
+            let allTokens = try await tokenStore.fetchAll()
+            context.logger.info("Daily report: processing \(users.count) user(s)")
+            for user in users {
+                do {
+                    let (_, body) = try await computeCurrentPeriodFromDynamoDB(
+                        userId: user.username,
+                        accountStore: accountStore,
+                        transactionStore: transactionStore,
+                        context: context
+                    )
+                    let userTokens = allTokens.filter { $0.userId == user.username }
+                    if userTokens.isEmpty {
+                        context.logger.info("User \(user.username): no device tokens, skipping push")
+                        continue
+                    }
+                    let payload = NotificationPayload(
+                        title: "Weekly Paydown",
+                        body: body,
+                        data: ["deepLink": "paydown"]
+                    )
+                    try await notificationClient.send(payload, to: userTokens)
+                    context.logger.info("Sent paydown push to user \(user.username): \(userTokens.count) device(s)")
+                } catch {
+                    context.logger.error("Failed report for user \(user.username): \(error)")
+                }
+            }
+        } catch {
+            context.logger.error("Daily report failed to load users: \(error)")
+        }
+    }
+
+    /// Admin/manual trigger for the daily report flow — iterates all users, computes from DynamoDB, pushes per-user.
+    /// Same logic as the EventBridge "report" task.
     private static func handleGenerateReport(
-        lunchMoneyToken: String,
-        client: LunchMoneyClient,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        let (reports, summaryText) = try await computeCurrentPeriodPaydown(
-            lunchMoneyToken: lunchMoneyToken,
-            client: client,
+        await handleDailyReport(
+            userStore: userStore,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
+            tokenStore: tokenStore,
+            notificationClient: notificationClient,
             context: context
         )
-
-        let tokens = try await tokenStore.fetchAll()
-        if !tokens.isEmpty {
-            let payload = NotificationPayload(
-                title: "Weekly Paydown",
-                body: summaryText,
-                data: ["deepLink": "paydown"]
-            )
-            try await notificationClient.send(payload, to: tokens)
-        }
-        context.logger.info("Sent weekly paydown push to \(tokens.count) device(s)")
-
-        struct GenerateResult: Encodable {
-            let body: String
-            let accountCount: Int
-            let notificationsSent: Int
-        }
-        let result = GenerateResult(
-            body: summaryText,
-            accountCount: reports.count,
-            notificationsSent: tokens.count
-        )
-        let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
-            body: String(data: data, encoding: .utf8) ?? "{}"
+            body: #"{"status":"ok"}"#
         )
     }
 
@@ -648,6 +673,7 @@ struct GetRicherLambda {
     private static func handleRefresh(
         event: APIGatewayRequest,
         client: LunchMoneyClient,
+        globalLunchMoneyToken: String,
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
@@ -672,13 +698,8 @@ struct GetRicherLambda {
                 body: #"{"error":"Invalid credentials"}"#
             )
         }
-        guard let token = user.lunchMoneyToken else {
-            return APIGatewayResponse(
-                statusCode: .badRequest,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"error":"No Lunch Money token configured for this user"}"#
-            )
-        }
+        // Fall back to the Lambda's global LM token when the user hasn't configured a per-user one.
+        let token = user.lunchMoneyToken ?? globalLunchMoneyToken
 
         let accountsResponse = try await client.fetchPlaidAccounts(token: token)
         let accounts = accountsResponse.plaidAccounts.map { dto in
@@ -738,10 +759,10 @@ struct GetRicherLambda {
     }
 
     private static func handleSendMyReport(
-        lunchMoneyToken: String,
-        client: LunchMoneyClient,
         tokenStore: any DeviceTokenStoreProtocol,
         userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         event: APIGatewayRequest,
         context: LambdaContext
@@ -766,9 +787,10 @@ struct GetRicherLambda {
             )
         }
 
-        let (_, summaryText) = try await computeCurrentPeriodPaydown(
-            lunchMoneyToken: lunchMoneyToken,
-            client: client,
+        let (_, summaryText) = try await computeCurrentPeriodFromDynamoDB(
+            userId: user.username,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
             context: context
         )
 
@@ -1048,13 +1070,34 @@ struct GetRicherLambda {
     }
 
     private static func handleWeeklyPaydown(
-        lunchMoneyToken: String,
-        client: LunchMoneyClient,
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        let (reports, body) = try await computeCurrentPeriodPaydown(
-            lunchMoneyToken: lunchMoneyToken,
-            client: client,
+        guard let username = event.queryStringParameters?["username"],
+              let password = event.queryStringParameters?["password"]
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username or password"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        let (reports, body) = try await computeCurrentPeriodFromDynamoDB(
+            userId: user.username,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
             context: context
         )
         struct AccountReportDTO: Encodable {
@@ -1391,7 +1434,9 @@ private struct LoggingDeviceTokenStore: DeviceTokenStoreProtocol {
 struct LambdaDispatchEvent: Decodable, Sendable {
     enum Kind: Sendable {
         case apiGateway(APIGatewayRequest)
-        case scheduled
+        /// EventBridge scheduled trigger. `task` identifies which job: "refresh" (hourly LM→DynamoDB sync)
+        /// or "report" (daily paydown push). `nil` = legacy scheduled event with no payload (do both).
+        case scheduled(task: String?)
     }
 
     let kind: Kind
@@ -1401,11 +1446,12 @@ struct LambdaDispatchEvent: Decodable, Sendable {
         if (try? container.decodeIfPresent(String.self, forKey: .httpMethod)) != nil {
             kind = .apiGateway(try APIGatewayRequest(from: decoder))
         } else {
-            kind = .scheduled
+            let task = try? container.decodeIfPresent(String.self, forKey: .task)
+            kind = .scheduled(task: task)
         }
     }
 
     enum CodingKeys: String, CodingKey {
-        case httpMethod
+        case httpMethod, task
     }
 }

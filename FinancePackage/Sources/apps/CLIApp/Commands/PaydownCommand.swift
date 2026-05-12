@@ -14,10 +14,15 @@ struct PaydownCommand: AsyncParsableCommand {
         guard !config.baseURL.isEmpty else {
             throw ValidationError("--base-url is required (or set GETRICHER_API_URL)")
         }
+        guard !config.username.isEmpty, !config.password.isEmpty else {
+            throw ValidationError("--username and --password are required")
+        }
         let baseURL = config.baseURL
+        let username = config.username
+        let password = config.password
         let result = try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            return try await client.fetchWeeklyPaydown()
+            return try await client.fetchWeeklyPaydown(username: username, password: password)
         }.value
 
         print("Period: \(result.periodStart) → \(result.periodEnd)")

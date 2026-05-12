@@ -210,10 +210,16 @@ extension APIClient {
         public let accounts: [WeeklyPaydownAccount]
     }
 
-    /// Fetches the current-period weekly paydown report from the server (computed live from Lunch Money).
+    /// Fetches the current-period weekly paydown report from the server (computed from DynamoDB).
     /// This is the same computation that drives the daily push notification.
-    public func fetchWeeklyPaydown() async throws -> WeeklyPaydown {
-        let data = try await get("/api/weekly-paydown")
+    public func fetchWeeklyPaydown(username: String, password: String) async throws -> WeeklyPaydown {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/weekly-paydown?\(query)")
         return try decodeOrThrow(WeeklyPaydown.self, from: data)
     }
 
