@@ -28,7 +28,7 @@ class WeeklyPaydownModel {
 
     var dateRange: PaydownDateRange {
         guard let period = selectedPeriod else {
-            return PaydownDateRange.compute(pivotDay: pivotDay)
+            return PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay)
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -38,35 +38,23 @@ class WeeklyPaydownModel {
         )
     }
 
-    func calculation(
+    /// Full per-account paydown report for the selected account/period, including transfer breakdown.
+    /// This is the shared algorithm — the same call the Lambda uses.
+    func report(
         accountId: Int?,
         accounts: [Account],
-        transactions: [Transaction]
-    ) -> PaydownCalculation {
+        transactions: [Transaction],
+        rules: [TransferRule],
+        vendors: [Vendor]
+    ) -> AccountPaydownReport? {
+        guard let accountId else { return nil }
         let reports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
+            rules: rules,
+            vendors: vendors,
             dateRange: dateRange
         )
-        if let accountId, let report = reports.first(where: { $0.account.lunchMoneyId == accountId }) {
-            return report.calculation
-        }
-        return PaydownCalculation.compute(account: nil, periodTransactions: [], postPeriodClearedTransactions: [])
-    }
-
-    func transferBreakdown(
-        accountId: Int,
-        periodTransactions: [Transaction],
-        vendors: [Vendor],
-        rules: [TransferRule],
-        accounts: [Account]
-    ) -> [TransferBreakdown] {
-        TransferBreakdown.compute(
-            accountId: accountId,
-            periodTransactions: periodTransactions,
-            vendors: vendors,
-            rules: rules,
-            accounts: accounts
-        )
+        return reports.first { $0.account.lunchMoneyId == accountId }
     }
 }

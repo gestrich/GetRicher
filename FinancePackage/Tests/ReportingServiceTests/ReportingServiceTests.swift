@@ -54,6 +54,7 @@ private func knownMonday() -> Date {
 }
 
 // MARK: - BudgetPeriod
+// Pivot day is the FIRST day of its period. Filter convention: tx.date >= start && tx.date <= end.
 
 @Suite struct BudgetPeriodTests {
     @Test("periods returns requested count")
@@ -69,25 +70,35 @@ private func knownMonday() -> Date {
         #expect(weekday == PivotDay.monday.weekdayNumber)
     }
 
-    @Test("first period ends on the reference date")
+    @Test("current in-progress period ends on the reference date and starts at the pivot")
     func periodsCurrentPeriodEndsOnReferenceDate() {
         let monday = knownMonday()
         let periods = BudgetPeriod.periods(count: 1, pivotDay: .monday, referenceDate: monday)
         let expectedEnd = Calendar.current.startOfDay(for: monday)
         #expect(Calendar.current.isDate(periods[0].end, inSameDayAs: expectedEnd))
+        #expect(Calendar.current.isDate(periods[0].start, inSameDayAs: expectedEnd))
     }
 
-    @Test("consecutive periods are adjacent with no gap")
+    @Test("consecutive periods are adjacent: period[N].end is the day before period[N-1].start")
     func periodsAdjacency() {
         let periods = BudgetPeriod.periods(count: 3, pivotDay: .monday, referenceDate: knownMonday())
         #expect(periods.count == 3)
-        let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: periods[0].start)!
-        #expect(Calendar.current.isDate(periods[1].end, inSameDayAs: dayBefore))
+        let dayBeforeP0Start = Calendar.current.date(byAdding: .day, value: -1, to: periods[0].start)!
+        #expect(Calendar.current.isDate(periods[1].end, inSameDayAs: dayBeforeP0Start))
+        let dayBeforeP1Start = Calendar.current.date(byAdding: .day, value: -1, to: periods[1].start)!
+        #expect(Calendar.current.isDate(periods[2].end, inSameDayAs: dayBeforeP1Start))
+    }
+
+    @Test("completed periods span exactly 7 days")
+    func periodsCompletedLength() {
+        let periods = BudgetPeriod.periods(count: 3, pivotDay: .monday, referenceDate: knownMonday())
+        let diff = Calendar.current.dateComponents([.day], from: periods[1].start, to: periods[1].end).day!
+        #expect(diff == 6) // 7 days inclusive of both ends
     }
 
     @Test("startString and endString use yyyy-MM-dd format")
     func periodsStringFormat() {
-        // knownMonday is 2026-05-04; with Monday pivot, period starts and ends on that same day
+        // knownMonday is 2026-05-04; with Monday pivot, current period both starts and ends on 5/4
         let periods = BudgetPeriod.periods(count: 1, pivotDay: .monday, referenceDate: knownMonday())
         #expect(periods[0].startString == "2026-05-04")
         #expect(periods[0].endString == "2026-05-04")
@@ -97,21 +108,31 @@ private func knownMonday() -> Date {
 // MARK: - PaydownDateRange
 
 @Suite struct PaydownDateRangeTests {
-    @Test("ends on pivot day when reference is the pivot day")
+    @Test("compute returns the previous completed week (7 days, inclusive)")
     func computeOnPivotDay() {
+        // ref = Mon 2026-05-04, pivot = Monday. Prior completed period: 4/27 → 5/3.
         let range = PaydownDateRange.compute(pivotDay: .monday, referenceDate: knownMonday())
-        #expect(range.end == "2026-05-04")
         #expect(range.start == "2026-04-27")
+        #expect(range.end == "2026-05-03")
     }
 
-    @Test("rolls back to most recent pivot when reference is not the pivot day")
+    @Test("compute rolls back to the most recent pivot before computing the prior period")
     func computeRollsBackToPivot() {
-        // May 6, 2026 is a Wednesday; most recent Monday is May 4
+        // May 6, 2026 is a Wednesday; most recent Monday is May 4. Prior period: 4/27 → 5/3.
         var c = DateComponents(); c.year = 2026; c.month = 5; c.day = 6
         let wednesday = Calendar.current.date(from: c)!
         let range = PaydownDateRange.compute(pivotDay: .monday, referenceDate: wednesday)
-        #expect(range.end == "2026-05-04")
         #expect(range.start == "2026-04-27")
+        #expect(range.end == "2026-05-03")
+    }
+
+    @Test("computeCurrentPeriod spans most recent pivot through today (inclusive)")
+    func computeCurrentPeriod() {
+        var c = DateComponents(); c.year = 2026; c.month = 5; c.day = 6
+        let wednesday = Calendar.current.date(from: c)!
+        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: .monday, referenceDate: wednesday)
+        #expect(range.start == "2026-05-04")
+        #expect(range.end == "2026-05-06")
     }
 }
 

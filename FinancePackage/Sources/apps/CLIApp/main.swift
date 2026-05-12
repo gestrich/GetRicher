@@ -13,6 +13,7 @@ struct GetRicherCLI: AsyncParsableCommand {
             RefreshCommand.self,
             ReportCommand.self,
             SendReportCommand.self,
+            PaydownCommand.self,
             ReviewItemsCommand.self,
             ResolveItemCommand.self,
             AdminCommand.self,

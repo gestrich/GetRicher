@@ -128,7 +128,6 @@ struct GetRicherLambda {
                 return try await handleGenerateReport(
                     lunchMoneyToken: lunchMoneyToken,
                     client: client,
-                    reviewItemStore: reviewItemStore,
                     tokenStore: tokenStore,
                     notificationClient: notificationClient,
                     context: context
@@ -179,19 +178,24 @@ struct GetRicherLambda {
             return try await handleGenerateReport(
                 lunchMoneyToken: lunchMoneyToken,
                 client: client,
-                reviewItemStore: reviewItemStore,
                 tokenStore: tokenStore,
                 notificationClient: notificationClient,
                 context: context
             )
         } else if request.httpMethod == .post && request.path == "/api/send-my-report" {
             return try await handleSendMyReport(
+                lunchMoneyToken: lunchMoneyToken,
+                client: client,
                 tokenStore: tokenStore,
                 userStore: userStore,
-                accountStore: accountStore,
-                transactionStore: transactionStore,
                 notificationClient: notificationClient,
                 event: request,
+                context: context
+            )
+        } else if request.httpMethod == .get && request.path == "/api/weekly-paydown" {
+            return try await handleWeeklyPaydown(
+                lunchMoneyToken: lunchMoneyToken,
+                client: client,
                 context: context
             )
         } else if request.httpMethod == .get && request.path == "/api/accounts" {
@@ -469,14 +473,20 @@ struct GetRicherLambda {
         }
     }
 
-    private static func generatePaydownData(
+    private static func pivotDay() -> PivotDay {
+        let raw = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
+        return PivotDay.allCases.first { $0.rawValue.lowercased() == raw.lowercased() } ?? .saturday
+    }
+
+    /// Fetches the current-period paydown directly from LunchMoney (live data).
+    /// The Lambda has no transfer rules/vendors stored, so transferBreakdown is empty —
+    /// the notification body reports gross periodSpending per credit account.
+    private static func computeCurrentPeriodPaydown(
         lunchMoneyToken: String,
         client: LunchMoneyClient,
         context: LambdaContext
-    ) async throws -> (accounts: [Account], notificationBody: String) {
-        let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
-        let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
-
+    ) async throws -> (reports: [AccountPaydownReport], notificationBody: String) {
+        let pivot = pivotDay()
         let accountsResponse = try await client.fetchPlaidAccounts(token: lunchMoneyToken)
         let accounts = accountsResponse.plaidAccounts.map { dto in
             Account(
@@ -493,7 +503,7 @@ struct GetRicherLambda {
             )
         }
 
-        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay)
+        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot)
 
         let limit = 500
         var offset = 0
@@ -513,77 +523,48 @@ struct GetRicherLambda {
         }
 
         let transactions = allTransactionDTOs.map { $0.toDomain() }
-        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, dateRange: range)
-        let body = WeeklyPaydownReport.weeklySpendingBody(from: reports)
+        let reports = WeeklyPaydownReport.compute(
+            accounts: accounts,
+            transactions: transactions,
+            dateRange: range
+        )
+        let body = WeeklyPaydownReport.notificationBody(from: reports)
         let notificationBody = body.isEmpty ? "No credit accounts found" : body
-
-        return (accounts: accounts, notificationBody: notificationBody)
-    }
-
-    private static func generatePaydownDataFromDynamoDB(
-        userId: String,
-        accountStore: any AccountStoreProtocol,
-        transactionStore: any TransactionStoreProtocol,
-        context: LambdaContext
-    ) async throws -> (accounts: [Account], notificationBody: String) {
-        let pivotDayString = ProcessInfo.processInfo.environment["PIVOT_DAY"] ?? "saturday"
-        let pivotDay = PivotDay.allCases.first { $0.rawValue.lowercased() == pivotDayString.lowercased() } ?? .saturday
-
-        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay)
-        let accounts = try await accountStore.fetchAll(userId: userId)
-        let transactions = try await transactionStore.fetch(userId: userId, startDate: range.start, endDate: range.end)
-
-        let reports = WeeklyPaydownReport.compute(accounts: accounts, transactions: transactions, dateRange: range)
-        let body = WeeklyPaydownReport.weeklySpendingBody(from: reports)
-        let notificationBody = body.isEmpty ? "No credit accounts found" : body
-
-        return (accounts: accounts, notificationBody: notificationBody)
+        return (reports: reports, notificationBody: notificationBody)
     }
 
     private static func handleGenerateReport(
         lunchMoneyToken: String,
         client: LunchMoneyClient,
-        reviewItemStore: any ReviewItemStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        let (accounts, summaryText) = try await generatePaydownData(
+        let (reports, summaryText) = try await computeCurrentPeriodPaydown(
             lunchMoneyToken: lunchMoneyToken,
             client: client,
             context: context
         )
 
-        let now = ISO8601DateFormatter().string(from: Date())
-        let item = ReviewItem(
-            id: UUID().uuidString,
-            kind: .funAccountBalance,
-            title: "Weekly Spending Report",
-            summary: summaryText,
-            status: .pending,
-            createdAt: now
-        )
-        try await reviewItemStore.store(item)
-
         let tokens = try await tokenStore.fetchAll()
         if !tokens.isEmpty {
             let payload = NotificationPayload(
-                title: "Weekly Spending Report",
+                title: "Weekly Paydown",
                 body: summaryText,
-                data: ["deepLink": "inbox"]
+                data: ["deepLink": "paydown"]
             )
             try await notificationClient.send(payload, to: tokens)
         }
-        context.logger.info("Generated paydown report: stored review item \(item.id), notified \(tokens.count) device(s)")
+        context.logger.info("Sent weekly paydown push to \(tokens.count) device(s)")
 
         struct GenerateResult: Encodable {
-            let reviewItemId: String
+            let body: String
             let accountCount: Int
             let notificationsSent: Int
         }
         let result = GenerateResult(
-            reviewItemId: item.id,
-            accountCount: accounts.count,
+            body: summaryText,
+            accountCount: reports.count,
             notificationsSent: tokens.count
         )
         let data = try JSONEncoder().encode(result)
@@ -757,10 +738,10 @@ struct GetRicherLambda {
     }
 
     private static func handleSendMyReport(
+        lunchMoneyToken: String,
+        client: LunchMoneyClient,
         tokenStore: any DeviceTokenStoreProtocol,
         userStore: any UserStoreProtocol,
-        accountStore: any AccountStoreProtocol,
-        transactionStore: any TransactionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         event: APIGatewayRequest,
         context: LambdaContext
@@ -785,10 +766,9 @@ struct GetRicherLambda {
             )
         }
 
-        let (_, summaryText) = try await generatePaydownDataFromDynamoDB(
-            userId: user.username,
-            accountStore: accountStore,
-            transactionStore: transactionStore,
+        let (_, summaryText) = try await computeCurrentPeriodPaydown(
+            lunchMoneyToken: lunchMoneyToken,
+            client: client,
             context: context
         )
 
@@ -798,20 +778,21 @@ struct GetRicherLambda {
         var notificationsSent = 0
         if !userTokens.isEmpty {
             let payload = NotificationPayload(
-                title: "Weekly Spending Report",
+                title: "Weekly Paydown",
                 body: summaryText,
-                data: ["deepLink": "inbox"]
+                data: ["deepLink": "paydown"]
             )
             try await notificationClient.send(payload, to: userTokens)
             notificationsSent = userTokens.count
         }
-        context.logger.info("Sent report to user \(request.username): \(notificationsSent) device(s)")
+        context.logger.info("Sent paydown push to user \(request.username): \(notificationsSent) device(s)")
 
         struct SendReportResult: Encodable {
             let status: String
+            let body: String
             let notificationsSent: Int
         }
-        let result = SendReportResult(status: "ok", notificationsSent: notificationsSent)
+        let result = SendReportResult(status: "ok", body: summaryText, notificationsSent: notificationsSent)
         let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
@@ -1063,6 +1044,55 @@ struct GetRicherLambda {
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
             body: String(data: responseData, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    private static func handleWeeklyPaydown(
+        lunchMoneyToken: String,
+        client: LunchMoneyClient,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        let (reports, body) = try await computeCurrentPeriodPaydown(
+            lunchMoneyToken: lunchMoneyToken,
+            client: client,
+            context: context
+        )
+        struct AccountReportDTO: Encodable {
+            let lunchMoneyId: Int
+            let displayName: String
+            let balance: String
+            let periodSpending: Double
+            let transferTotal: Double
+            let netPeriodSpending: Double
+        }
+        struct WeeklyPaydownResult: Encodable {
+            let periodStart: String
+            let periodEnd: String
+            let body: String
+            let accounts: [AccountReportDTO]
+        }
+        let dtos = reports.map { r in
+            AccountReportDTO(
+                lunchMoneyId: r.account.lunchMoneyId,
+                displayName: r.account.displayName,
+                balance: r.account.balance,
+                periodSpending: r.calculation.periodSpending,
+                transferTotal: r.transferTotal,
+                netPeriodSpending: r.netPeriodSpending
+            )
+        }
+        let result = WeeklyPaydownResult(
+            periodStart: reports.first?.periodStart ?? "",
+            periodEnd: reports.first?.periodEnd ?? "",
+            body: body,
+            accounts: dtos
+        )
+        let data = try JSONEncoder().encode(result)
+        context.logger.info("Computed weekly paydown for \(reports.count) credit account(s)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
         )
     }
 

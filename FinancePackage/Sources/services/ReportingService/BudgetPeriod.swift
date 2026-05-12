@@ -32,8 +32,9 @@ public struct BudgetPeriod: Identifiable, Hashable, Sendable {
         self.end = end
     }
 
-    /// Generates budget periods based on the pivot day.
-    /// Period 0 is the current (in-progress) period; period 1 is the one just completed, etc.
+    /// Generates budget periods. The pivot day is the FIRST day of a period (e.g., Saturday starts a week).
+    /// Period 0 is the current in-progress period: start = most recent pivot, end = today (both inclusive).
+    /// Period N (N≥1) is a completed prior week: 7 days ending the day before period N-1's start.
     public static func periods(count: Int, pivotDay: PivotDay, referenceDate: Date = Date()) -> [BudgetPeriod] {
         let calendar = Calendar.current
         let targetWeekday = pivotDay.weekdayNumber
@@ -47,11 +48,12 @@ public struct BudgetPeriod: Identifiable, Hashable, Sendable {
         var result: [BudgetPeriod] = []
         result.append(BudgetPeriod(start: mostRecentPivot, end: today))
 
-        var periodEnd = calendar.date(byAdding: .day, value: -1, to: mostRecentPivot)!
+        var nextPivot = mostRecentPivot
         for _ in 1..<count {
-            let periodStart = calendar.date(byAdding: .day, value: -6, to: periodEnd)!
+            let periodEnd = calendar.date(byAdding: .day, value: -1, to: nextPivot)!
+            let periodStart = calendar.date(byAdding: .day, value: -7, to: nextPivot)!
             result.append(BudgetPeriod(start: periodStart, end: periodEnd))
-            periodEnd = calendar.date(byAdding: .day, value: -7, to: periodEnd)!
+            nextPivot = periodStart
         }
 
         return result

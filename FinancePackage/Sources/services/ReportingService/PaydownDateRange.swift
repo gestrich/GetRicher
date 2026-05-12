@@ -9,36 +9,37 @@ public struct PaydownDateRange: Sendable {
         self.end = end
     }
 
+    /// Returns the most recent completed weekly period.
+    /// The pivot day is the FIRST day of a period (e.g., Saturday starts a week with Saturday pivot).
+    /// Completed period: start = prior pivot, end = day before this pivot (7 days, inclusive on both ends).
     public static func compute(pivotDay: PivotDay, referenceDate: Date = Date()) -> PaydownDateRange {
         let calendar = Calendar.current
-        let targetWeekday = pivotDay.weekdayNumber
-        var end = referenceDate
-        while calendar.component(.weekday, from: end) != targetWeekday {
-            end = calendar.date(byAdding: .day, value: -1, to: end)!
-        }
-        end = calendar.startOfDay(for: end)
-        let start = calendar.date(byAdding: .day, value: -7, to: end)!
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return PaydownDateRange(start: formatter.string(from: start), end: formatter.string(from: end))
+        let mostRecent = mostRecentPivot(pivotDay: pivotDay, referenceDate: referenceDate, calendar: calendar)
+        let end = calendar.date(byAdding: .day, value: -1, to: mostRecent)!
+        let start = calendar.date(byAdding: .day, value: -7, to: mostRecent)!
+        return PaydownDateRange(start: format(start), end: format(end))
     }
 
-    /// Returns a range from the most recent pivot day through today.
-    /// `start` is set to one day before the pivot so Saturday transactions are captured
-    /// by the existing `tx.date > start && tx.date <= end` filter convention.
+    /// Returns the current in-progress weekly period: from the most recent pivot (inclusive)
+    /// through today (inclusive). Pairs with the `>= start && <= end` filter convention.
     public static func computeCurrentPeriod(pivotDay: PivotDay, referenceDate: Date = Date()) -> PaydownDateRange {
         let calendar = Calendar.current
-        let targetWeekday = pivotDay.weekdayNumber
-        var pivotDate = calendar.startOfDay(for: referenceDate)
-        while calendar.component(.weekday, from: pivotDate) != targetWeekday {
-            pivotDate = calendar.date(byAdding: .day, value: -1, to: pivotDate)!
-        }
-        let start = calendar.date(byAdding: .day, value: -1, to: pivotDate)!
+        let mostRecent = mostRecentPivot(pivotDay: pivotDay, referenceDate: referenceDate, calendar: calendar)
         let end = calendar.startOfDay(for: referenceDate)
+        return PaydownDateRange(start: format(mostRecent), end: format(end))
+    }
 
+    private static func mostRecentPivot(pivotDay: PivotDay, referenceDate: Date, calendar: Calendar) -> Date {
+        var date = calendar.startOfDay(for: referenceDate)
+        while calendar.component(.weekday, from: date) != pivotDay.weekdayNumber {
+            date = calendar.date(byAdding: .day, value: -1, to: date)!
+        }
+        return date
+    }
+
+    private static func format(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        return PaydownDateRange(start: formatter.string(from: start), end: formatter.string(from: end))
+        return formatter.string(from: date)
     }
 }

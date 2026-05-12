@@ -194,6 +194,29 @@ extension APIClient {
         return try await post("/api/generate-report", body: nil)
     }
 
+    public struct WeeklyPaydownAccount: Decodable, Sendable {
+        public let lunchMoneyId: Int
+        public let displayName: String
+        public let balance: String
+        public let periodSpending: Double
+        public let transferTotal: Double
+        public let netPeriodSpending: Double
+    }
+
+    public struct WeeklyPaydown: Decodable, Sendable {
+        public let periodStart: String
+        public let periodEnd: String
+        public let body: String
+        public let accounts: [WeeklyPaydownAccount]
+    }
+
+    /// Fetches the current-period weekly paydown report from the server (computed live from Lunch Money).
+    /// This is the same computation that drives the daily push notification.
+    public func fetchWeeklyPaydown() async throws -> WeeklyPaydown {
+        let data = try await get("/api/weekly-paydown")
+        return try decodeOrThrow(WeeklyPaydown.self, from: data)
+    }
+
     public func sendReport(username: String, password: String) async throws {
         struct SendReportBody: Encodable {
             let username: String

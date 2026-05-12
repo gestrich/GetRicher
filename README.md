@@ -22,9 +22,23 @@ The `get-richer` CLI provides full feature parity with the iOS app and is the pr
 
 ### Setup
 
+The CLI reads its configuration from environment variables. For local use, create a `.env` file at the repo root (already in `.gitignore`) and source it before running commands:
+
 ```bash
-export GETRICHER_API_URL="https://<api-gateway-id>.execute-api.<region>.amazonaws.com/prod"
+# .env (do not commit)
+GETRICHER_API_URL="https://<api-gateway-id>.execute-api.<region>.amazonaws.com/prod"
+GETRICHER_USERNAME="alice"
+GETRICHER_PASSWORD="secret"
+GETRICHER_ADMIN_PASSWORD="<admin-password>"
 ```
+
+Load it once per shell session:
+
+```bash
+set -a; source .env; set +a
+```
+
+After sourcing, the example commands below can omit `--username`/`--password`/`--base-url`.
 
 ### Commands
 
@@ -39,11 +53,14 @@ swift run get-richer transactions --username alice --password secret \
 # Trigger an immediate on-demand refresh from Lunch Money
 swift run get-richer refresh --username alice --password secret
 
-# Generate a paydown report
-swift run get-richer report --username alice --password secret
+# Fetch the current weekly paydown (the same data the iOS tab and daily push use)
+swift run get-richer paydown
 
-# Send push notification report
+# Trigger a one-off paydown push notification right now
 swift run get-richer send-report --username alice --password secret
+
+# (Legacy) Generate a paydown report — same as paydown, kept for compatibility
+swift run get-richer report --username alice --password secret
 
 # List and resolve pending review items
 swift run get-richer review-items --username alice --password secret

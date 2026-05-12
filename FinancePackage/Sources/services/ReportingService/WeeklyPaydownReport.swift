@@ -2,19 +2,14 @@ import FinanceCoreSDK
 import Foundation
 
 public struct WeeklyPaydownReport {
+    /// Unified entry point. Computes a per-credit-account paydown report for the given date range.
+    /// `rules` and `vendors` are optional — when omitted, no bill-mapping subtraction is applied.
+    /// Date filter convention: `tx.date >= range.start && tx.date <= range.end` (both inclusive).
     public static func compute(
         accounts: [Account],
         transactions: [Transaction],
-        pivotDay: PivotDay,
-        referenceDate: Date = Date()
-    ) -> [AccountPaydownReport] {
-        let range = PaydownDateRange.compute(pivotDay: pivotDay, referenceDate: referenceDate)
-        return compute(accounts: accounts, transactions: transactions, dateRange: range)
-    }
-
-    public static func compute(
-        accounts: [Account],
-        transactions: [Transaction],
+        rules: [TransferRule] = [],
+        vendors: [Vendor] = [],
         dateRange: PaydownDateRange
     ) -> [AccountPaydownReport] {
         accounts
@@ -22,7 +17,7 @@ public struct WeeklyPaydownReport {
             .map { account in
                 let periodTx = transactions.filter { tx in
                     tx.plaidAccountId == account.lunchMoneyId &&
-                        tx.date > dateRange.start &&
+                        tx.date >= dateRange.start &&
                         tx.date <= dateRange.end &&
                         !tx.isIncome
                 }
@@ -37,29 +32,48 @@ public struct WeeklyPaydownReport {
                     periodTransactions: periodTx,
                     postPeriodClearedTransactions: postPeriodTx
                 )
+                let breakdown = TransferBreakdown.compute(
+                    accountId: account.lunchMoneyId,
+                    periodTransactions: periodTx,
+                    vendors: vendors,
+                    rules: rules,
+                    accounts: accounts
+                )
                 return AccountPaydownReport(
                     account: account,
                     calculation: calculation,
+                    transferBreakdown: breakdown,
                     periodStart: dateRange.start,
                     periodEnd: dateRange.end
                 )
             }
     }
 
+    /// Convenience: compute for the current in-progress period using the pivot day.
+    public static func computeCurrentPeriod(
+        accounts: [Account],
+        transactions: [Transaction],
+        rules: [TransferRule] = [],
+        vendors: [Vendor] = [],
+        pivotDay: PivotDay,
+        referenceDate: Date = Date()
+    ) -> [AccountPaydownReport] {
+        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivotDay, referenceDate: referenceDate)
+        return compute(
+            accounts: accounts,
+            transactions: transactions,
+            rules: rules,
+            vendors: vendors,
+            dateRange: range
+        )
+    }
+
+    /// Formats the canonical "weekly paydown" value (`netPeriodSpending`) per credit account.
+    /// Used for push notification bodies.
     public static func notificationBody(from reports: [AccountPaydownReport]) -> String {
         reports
             .map { report in
-                let formatted = String(format: "$%.2f", report.calculation.adjustedSpending)
-                return "\(report.account.displayName): \(formatted)"
-            }
-            .joined(separator: " | ")
-    }
-
-    /// Formats reports using periodSpending (posted + pending in period) instead of the balance-based adjustedSpending.
-    public static func weeklySpendingBody(from reports: [AccountPaydownReport]) -> String {
-        reports
-            .map { report in
-                let formatted = String(format: "$%.2f", report.calculation.periodSpending)
+                let formatted = String(format: "$%.2f", report.netPeriodSpending)
                 return "\(report.account.displayName): \(formatted)"
             }
             .joined(separator: " | ")

@@ -92,10 +92,11 @@ export class LambdaConstruct extends Construct {
       resources: ['arn:aws:logs:*:*:log-group:/getricher/ios'],
     }));
 
-    // Daily paydown report: every day at 5:00 AM UTC
+    // Daily paydown push: 9:00 AM UTC = 4 AM EST / 5 AM EDT.
+    // (EventBridge Rule doesn't support timezones; UTC time shifts by ±1h across DST.)
     const dailyReportRule = new events.Rule(this, 'DailyReportRule', {
-      schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
-      description: 'Daily paydown report and push notification',
+      schedule: events.Schedule.cron({ minute: '0', hour: '9' }),
+      description: 'Daily weekly-paydown push notification (~5 AM Eastern)',
       enabled: true
     });
     dailyReportRule.addTarget(new targets.LambdaFunction(this.function));

@@ -36,23 +36,16 @@ struct WeeklyPaydownView: View {
         // Domain period transactions for charts and calculations
         let periodDomainTx = domainTransactions.filter { tx in
             let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
-            return accountMatch && tx.date > range.start && tx.date <= range.end && !tx.isIncome
+            return accountMatch && tx.date >= range.start && tx.date <= range.end && !tx.isIncome
         }
         let selectedAccount = paydownModel.account(id: selectedAccountIdOrNil, from: domainAccounts)
 
         // SwiftData period transactions for list display with detail navigation
         let periodTx = transactions.filter { tx in
             let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
-            let dateMatch = tx.date > range.start && tx.date <= range.end
+            let dateMatch = tx.date >= range.start && tx.date <= range.end
             return accountMatch && dateMatch && !tx.isIncome
         }
-        let postPeriodTx = transactions.filter { tx in
-            let accountMatch = selectedAccountIdOrNil == nil || tx.plaidAccountId == selectedAccountIdOrNil
-            let isAfterPeriod = tx.date > range.end
-            let isPosted = !tx.isPending
-            return accountMatch && isAfterPeriod && isPosted && !tx.isIncome
-        }
-
         NavigationStack {
             Group {
                 if transactionsModel.isSyncing && transactions.isEmpty {
@@ -78,7 +71,6 @@ struct WeeklyPaydownView: View {
                                 calculationBreakdownSection(
                                     periodDomainTransactions: periodDomainTx,
                                     periodTransactions: periodTx,
-                                    postPeriodTransactions: postPeriodTx,
                                     domainAccounts: domainAccounts,
                                     domainVendors: domainVendors,
                                     domainRules: domainRules,
@@ -188,7 +180,7 @@ struct WeeklyPaydownView: View {
         domainAccounts: [FinanceCoreSDK.Account]
     ) -> some View {
         let accountRules = domainRules.filter { $0.targetAccountId == selectedAccountId }
-        let breakdown = paydownModel.transferBreakdown(
+        let breakdown = TransferBreakdown.compute(
             accountId: selectedAccountId,
             periodTransactions: periodDomainTransactions,
             vendors: domainVendors,
@@ -242,23 +234,23 @@ struct WeeklyPaydownView: View {
     private func calculationBreakdownSection(
         periodDomainTransactions: [FinanceCoreSDK.Transaction],
         periodTransactions: [PersistenceService.Transaction],
-        postPeriodTransactions: [PersistenceService.Transaction],
         domainAccounts: [FinanceCoreSDK.Account],
         domainVendors: [FinanceCoreSDK.Vendor],
         domainRules: [FinanceCoreSDK.TransferRule],
         domainTransactions: [FinanceCoreSDK.Transaction]
     ) -> some View {
-        let calc = paydownModel.calculation(accountId: selectedAccountIdOrNil, accounts: domainAccounts, transactions: domainTransactions)
-        let breakdown = paydownModel.transferBreakdown(
-            accountId: selectedAccountId,
-            periodTransactions: periodDomainTransactions,
-            vendors: domainVendors,
+        let report = paydownModel.report(
+            accountId: selectedAccountIdOrNil,
+            accounts: domainAccounts,
+            transactions: domainTransactions,
             rules: domainRules,
-            accounts: domainAccounts
+            vendors: domainVendors
         )
-        let transferTotal = breakdown.reduce(0.0) { $0 + $1.amount }
+        let calc = report?.calculation ?? PaydownCalculation.compute(account: nil, periodTransactions: [], postPeriodClearedTransactions: [])
+        let breakdown = report?.transferBreakdown ?? []
+        let transferTotal = report?.transferTotal ?? 0
         let hasTransfers = !breakdown.isEmpty
-        let finalAmount = calc.adjustedSpending - transferTotal
+        let finalAmount = report?.netPeriodSpending ?? 0
 
         // Sub-filter SwiftData transactions for list navigation
         let debitTransactions = periodTransactions.filter { $0.toBase >= 0 }
@@ -337,54 +329,12 @@ struct WeeklyPaydownView: View {
                 .padding(.vertical, 4)
 
             CalculationRow(
-                label: "Current Balance",
-                amount: calc.currentBalance,
-                explanation: "The balance reported by your bank right now. This reflects all posted transactions but not pending ones.",
+                label: "Period Spending",
+                amount: calc.periodSpending,
+                explanation: "Sum of all charges (posted + pending) in this period, minus any refunds. Matches what's reported in the daily push notification.",
                 isTotal: false,
                 sign: ""
             )
-
-            NavigationLink {
-                FilteredTransactionListView(
-                    title: "Pending in Period",
-                    transactions: pendingTransactions
-                )
-            } label: {
-                HStack {
-                    CalculationRow(
-                        label: "Pending in Period",
-                        amount: calc.pendingAdjustment,
-                        explanation: "Transactions within the period that haven't posted yet. These are real charges that your balance doesn't include, so we add them.",
-                        isTotal: false,
-                        sign: "+"
-                    )
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .foregroundStyle(.primary)
-
-            NavigationLink {
-                FilteredTransactionListView(
-                    title: "Posted After Period",
-                    transactions: postPeriodTransactions
-                )
-            } label: {
-                HStack {
-                    CalculationRow(
-                        label: "Posted After Period",
-                        amount: calc.postPeriodAdjustment,
-                        explanation: "Transactions that posted AFTER the period window. They're already in your balance but belong to a future period, so we subtract them.",
-                        isTotal: false,
-                        sign: "−"
-                    )
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .foregroundStyle(.primary)
 
             if hasTransfers {
                 CalculationRow(
@@ -394,29 +344,20 @@ struct WeeklyPaydownView: View {
                     isTotal: false,
                     sign: "−"
                 )
-
-                Divider()
-                    .padding(.vertical, 8)
-
-                CalculationRow(
-                    label: "Amount to Pay",
-                    amount: finalAmount,
-                    explanation: "The remaining amount to pay after transfers from other accounts cover their portion.",
-                    isTotal: true,
-                    sign: "="
-                )
-            } else {
-                Divider()
-                    .padding(.vertical, 8)
-
-                CalculationRow(
-                    label: "Amount to Pay",
-                    amount: calc.adjustedSpending,
-                    explanation: "This is how much to pay your credit card vendor for the 7-day period.",
-                    isTotal: true,
-                    sign: "="
-                )
             }
+
+            Divider()
+                .padding(.vertical, 8)
+
+            CalculationRow(
+                label: "Amount to Pay",
+                amount: finalAmount,
+                explanation: hasTransfers
+                    ? "Period spending net of transfers covered by other accounts."
+                    : "Period spending in this 7-day window.",
+                isTotal: true,
+                sign: "="
+            )
         }
         .padding()
         .background(Color(.systemBackground))
