@@ -28,6 +28,8 @@ struct GetRicherLambda {
             let userStore: any UserStoreProtocol = LoggingUserStore()
             let accountStore: any AccountStoreProtocol = LoggingAccountStore()
             let transactionStore: any TransactionStoreProtocol = LoggingTransactionStore()
+            let transferRuleStore: any TransferRuleStoreProtocol = LoggingTransferRuleStore()
+            let vendorStore: any VendorStoreProtocol = LoggingVendorStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
             let iosLogsClient: any IOSLogsClientProtocol = LoggingIOSLogsClient()
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
@@ -44,6 +46,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
+                    transferRuleStore: transferRuleStore,
+                    vendorStore: vendorStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -57,6 +61,8 @@ struct GetRicherLambda {
             let userStore = DynamoDBUserStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let accountStore = DynamoDBAccountStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let transactionStore = DynamoDBTransactionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let transferRuleStore = DynamoDBTransferRuleStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let vendorStore = DynamoDBVendorStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let snsAppArn = ProcessInfo.processInfo.environment["SNS_PLATFORM_ARN"] ?? ""
             let notificationClient: any PushNotificationClientProtocol = snsAppArn.isEmpty
                 ? LoggingPushNotificationClient()
@@ -76,6 +82,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
+                    transferRuleStore: transferRuleStore,
+                    vendorStore: vendorStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -96,6 +104,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
@@ -113,6 +123,8 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
+                    transferRuleStore: transferRuleStore,
+                    vendorStore: vendorStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -134,6 +146,8 @@ struct GetRicherLambda {
                         userStore: userStore,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
+                        transferRuleStore: transferRuleStore,
+                        vendorStore: vendorStore,
                         tokenStore: tokenStore,
                         notificationClient: notificationClient,
                         context: context
@@ -153,6 +167,8 @@ struct GetRicherLambda {
                         userStore: userStore,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
+                        transferRuleStore: transferRuleStore,
+                        vendorStore: vendorStore,
                         tokenStore: tokenStore,
                         notificationClient: notificationClient,
                         context: context
@@ -181,6 +197,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
@@ -206,6 +224,8 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
+                transferRuleStore: transferRuleStore,
+                vendorStore: vendorStore,
                 tokenStore: tokenStore,
                 notificationClient: notificationClient,
                 context: context
@@ -216,6 +236,8 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
+                transferRuleStore: transferRuleStore,
+                vendorStore: vendorStore,
                 notificationClient: notificationClient,
                 event: request,
                 context: context
@@ -226,8 +248,18 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
+                transferRuleStore: transferRuleStore,
+                vendorStore: vendorStore,
                 context: context
             )
+        } else if request.httpMethod == .get && request.path == "/api/transfer-rules" {
+            return try await handleGetTransferRules(event: request, userStore: userStore, transferRuleStore: transferRuleStore, context: context)
+        } else if request.httpMethod == .put && request.path == "/api/transfer-rules" {
+            return try await handlePutTransferRules(event: request, userStore: userStore, transferRuleStore: transferRuleStore, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/vendors" {
+            return try await handleGetVendors(event: request, userStore: userStore, vendorStore: vendorStore, context: context)
+        } else if request.httpMethod == .put && request.path == "/api/vendors" {
+            return try await handlePutVendors(event: request, userStore: userStore, vendorStore: vendorStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/accounts" {
             return try await handleGetAccounts(event: request, userStore: userStore, accountStore: accountStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/transactions" {
@@ -509,23 +541,35 @@ struct GetRicherLambda {
 
     /// Computes a user's current-period paydown from DynamoDB. DynamoDB is the single source
     /// of truth — Lunch Money is only consulted by the hourly sync, never by report/API reads.
+    /// TransferRules + Vendors are pushed by the iOS app and applied here so the notification
+    /// body reflects the same "Amount to Pay" the iOS Weekly Paydown view shows.
     private static func computeCurrentPeriodFromDynamoDB(
         userId: String,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         context: LambdaContext
     ) async throws -> (reports: [AccountPaydownReport], notificationBody: String) {
         let pivot = pivotDay()
         let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot)
-        let accounts = try await accountStore.fetchAll(userId: userId)
-        let transactions = try await transactionStore.fetch(
+        async let accountsFetch = accountStore.fetchAll(userId: userId)
+        async let transactionsFetch = transactionStore.fetch(
             userId: userId,
             startDate: range.start,
             endDate: range.end
         )
+        async let rulesFetch = transferRuleStore.fetchAll(userId: userId)
+        async let vendorsFetch = vendorStore.fetchAll(userId: userId)
+        let accounts = try await accountsFetch
+        let transactions = try await transactionsFetch
+        let rules = try await rulesFetch
+        let vendors = try await vendorsFetch
         let reports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
+            rules: rules,
+            vendors: vendors,
             dateRange: range
         )
         let body = WeeklyPaydownReport.notificationBody(from: reports)
@@ -538,6 +582,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
@@ -552,6 +598,8 @@ struct GetRicherLambda {
                         userId: user.username,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
+                        transferRuleStore: transferRuleStore,
+                        vendorStore: vendorStore,
                         context: context
                     )
                     let userTokens = allTokens.filter { $0.userId == user.username }
@@ -581,6 +629,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
@@ -589,6 +639,8 @@ struct GetRicherLambda {
             userStore: userStore,
             accountStore: accountStore,
             transactionStore: transactionStore,
+            transferRuleStore: transferRuleStore,
+            vendorStore: vendorStore,
             tokenStore: tokenStore,
             notificationClient: notificationClient,
             context: context
@@ -763,6 +815,8 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         event: APIGatewayRequest,
         context: LambdaContext
@@ -791,6 +845,8 @@ struct GetRicherLambda {
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
+            transferRuleStore: transferRuleStore,
+            vendorStore: vendorStore,
             context: context
         )
 
@@ -1069,11 +1125,123 @@ struct GetRicherLambda {
         )
     }
 
+    // MARK: - Transfer rules + vendors (per-user, replace-all)
+
+    private static func authenticatedUser(
+        username: String?,
+        password: String?,
+        userStore: any UserStoreProtocol
+    ) async throws -> UserAccount? {
+        guard let username, let password else { return nil }
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else { return nil }
+        return user
+    }
+
+    private static func handleGetTransferRules(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let user = try await authenticatedUser(
+            username: event.queryStringParameters?["username"],
+            password: event.queryStringParameters?["password"],
+            userStore: userStore
+        ) else {
+            return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
+        }
+        let rules = try await transferRuleStore.fetchAll(userId: user.username)
+        let data = try JSONEncoder().encode(rules)
+        context.logger.info("Fetched \(rules.count) transfer rule(s) for user \(user.username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handlePutTransferRules(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        struct Body: Decodable { let username: String; let password: String; let rules: [TransferRule] }
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(Body.self, from: bodyData)
+        else {
+            return APIGatewayResponse(statusCode: .badRequest, headers: ["Content-Type": "application/json"], body: #"{"error":"Missing or invalid body"}"#)
+        }
+        guard let user = try await authenticatedUser(username: request.username, password: request.password, userStore: userStore) else {
+            return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
+        }
+        try await transferRuleStore.replaceAll(request.rules, userId: user.username)
+        context.logger.info("Stored \(request.rules.count) transfer rule(s) for user \(user.username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
+    private static func handleGetVendors(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let user = try await authenticatedUser(
+            username: event.queryStringParameters?["username"],
+            password: event.queryStringParameters?["password"],
+            userStore: userStore
+        ) else {
+            return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
+        }
+        let vendors = try await vendorStore.fetchAll(userId: user.username)
+        let data = try JSONEncoder().encode(vendors)
+        context.logger.info("Fetched \(vendors.count) vendor(s) for user \(user.username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handlePutVendors(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        struct Body: Decodable { let username: String; let password: String; let vendors: [Vendor] }
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(Body.self, from: bodyData)
+        else {
+            return APIGatewayResponse(statusCode: .badRequest, headers: ["Content-Type": "application/json"], body: #"{"error":"Missing or invalid body"}"#)
+        }
+        guard let user = try await authenticatedUser(username: request.username, password: request.password, userStore: userStore) else {
+            return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
+        }
+        try await vendorStore.replaceAll(request.vendors, userId: user.username)
+        context.logger.info("Stored \(request.vendors.count) vendor(s) for user \(user.username)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
+        )
+    }
+
     private static func handleWeeklyPaydown(
         event: APIGatewayRequest,
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
         guard let username = event.queryStringParameters?["username"],
@@ -1098,6 +1266,8 @@ struct GetRicherLambda {
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
+            transferRuleStore: transferRuleStore,
+            vendorStore: vendorStore,
             context: context
         )
         struct AccountReportDTO: Encodable {

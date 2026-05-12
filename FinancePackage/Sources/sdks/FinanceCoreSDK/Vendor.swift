@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Vendor: Identifiable, Sendable {
+public struct Vendor: Identifiable, Sendable, Codable, Hashable {
     public let id: UUID
     public let name: String
     public let filterText: String

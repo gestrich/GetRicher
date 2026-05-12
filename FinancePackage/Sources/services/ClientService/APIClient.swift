@@ -210,6 +210,42 @@ extension APIClient {
         public let accounts: [WeeklyPaydownAccount]
     }
 
+    /// Replaces the user's full set of TransferRules on the server. Called by the iOS app
+    /// whenever rules change locally so the daily push notification can apply them.
+    public func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws {
+        struct Body: Encodable { let username: String; let password: String; let rules: [TransferRule] }
+        let body = try JSONEncoder().encode(Body(username: username, password: password, rules: rules))
+        _ = try await put("/api/transfer-rules", body: body, headers: ["Content-Type": "application/json"])
+    }
+
+    public func fetchTransferRules(username: String, password: String) async throws -> [TransferRule] {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/transfer-rules?\(query)")
+        return try decodeOrThrow([TransferRule].self, from: data)
+    }
+
+    public func putVendors(username: String, password: String, vendors: [Vendor]) async throws {
+        struct Body: Encodable { let username: String; let password: String; let vendors: [Vendor] }
+        let body = try JSONEncoder().encode(Body(username: username, password: password, vendors: vendors))
+        _ = try await put("/api/vendors", body: body, headers: ["Content-Type": "application/json"])
+    }
+
+    public func fetchVendors(username: String, password: String) async throws -> [Vendor] {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/vendors?\(query)")
+        return try decodeOrThrow([Vendor].self, from: data)
+    }
+
     /// Fetches the current-period weekly paydown report from the server (computed from DynamoDB).
     /// This is the same computation that drives the daily push notification.
     public func fetchWeeklyPaydown(username: String, password: String) async throws -> WeeklyPaydown {

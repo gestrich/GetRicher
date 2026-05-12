@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TransferRule: Identifiable, Sendable {
+public struct TransferRule: Identifiable, Sendable, Codable, Hashable {
     public let id: UUID
     public let name: String
     public let vendor: Vendor?
