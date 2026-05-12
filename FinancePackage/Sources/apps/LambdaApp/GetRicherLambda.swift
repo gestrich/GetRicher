@@ -154,26 +154,10 @@ struct GetRicherLambda {
                     )
                     return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
                 default:
-                    // Legacy path: run both (used by manual invokes from older clients).
-                    await handleHourlyDataFetch(
-                        client: client,
-                        globalLunchMoneyToken: lunchMoneyToken,
-                        userStore: userStore,
-                        accountStore: accountStore,
-                        transactionStore: transactionStore,
-                        context: context
-                    )
-                    await handleDailyReport(
-                        userStore: userStore,
-                        accountStore: accountStore,
-                        transactionStore: transactionStore,
-                        transferRuleStore: transferRuleStore,
-                        vendorStore: vendorStore,
-                        tokenStore: tokenStore,
-                        notificationClient: notificationClient,
-                        context: context
-                    )
-                    return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
+                    // Unknown / no payload: ignore. The canonical scheduled tasks are
+                    // "refresh" (hourly) and "report" (daily), both wired with explicit payloads.
+                    context.logger.warning("Ignoring scheduled trigger with unknown task=\(task ?? "<none>")")
+                    return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ignored"}"#)
                 }
             }
         } catch {
@@ -578,6 +562,8 @@ struct GetRicherLambda {
     }
 
     /// Iterates all users, computes each user's paydown from DynamoDB, and pushes to that user's devices.
+    /// Sends one notification per credit account so each gets its own banner (iOS truncates
+    /// concatenated bodies and would otherwise hide all but the first account in the lock-screen preview).
     private static func handleDailyReport(
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
@@ -594,7 +580,7 @@ struct GetRicherLambda {
             context.logger.info("Daily report: processing \(users.count) user(s)")
             for user in users {
                 do {
-                    let (_, body) = try await computeCurrentPeriodFromDynamoDB(
+                    let (reports, _) = try await computeCurrentPeriodFromDynamoDB(
                         userId: user.username,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
@@ -607,19 +593,41 @@ struct GetRicherLambda {
                         context.logger.info("User \(user.username): no device tokens, skipping push")
                         continue
                     }
-                    let payload = NotificationPayload(
-                        title: "Weekly Paydown",
-                        body: body,
-                        data: ["deepLink": "paydown"]
+                    try await sendPerAccountPushes(
+                        reports: reports,
+                        userTokens: userTokens,
+                        notificationClient: notificationClient
                     )
-                    try await notificationClient.send(payload, to: userTokens)
-                    context.logger.info("Sent paydown push to user \(user.username): \(userTokens.count) device(s)")
+                    context.logger.info("Sent \(reports.count) paydown push(es) to user \(user.username): \(userTokens.count) device(s) each")
                 } catch {
                     context.logger.error("Failed report for user \(user.username): \(error)")
                 }
             }
         } catch {
             context.logger.error("Daily report failed to load users: \(error)")
+        }
+    }
+
+    /// Sends one push notification per credit-card account so each account's value is visible
+    /// in the lock-screen preview without truncation.
+    private static func sendPerAccountPushes(
+        reports: [AccountPaydownReport],
+        userTokens: [DeviceToken],
+        notificationClient: any PushNotificationClientProtocol
+    ) async throws {
+        for report in reports {
+            let amount = String(format: "$%.2f", report.netPeriodSpending)
+            let title = report.account.displayName
+            let body = "Amount to pay: \(amount)"
+            let payload = NotificationPayload(
+                title: title,
+                body: body,
+                data: [
+                    "deepLink": "paydown",
+                    "accountId": String(report.account.lunchMoneyId),
+                ]
+            )
+            try await notificationClient.send(payload, to: userTokens)
         }
     }
 
@@ -841,7 +849,7 @@ struct GetRicherLambda {
             )
         }
 
-        let (_, summaryText) = try await computeCurrentPeriodFromDynamoDB(
+        let (reports, summaryText) = try await computeCurrentPeriodFromDynamoDB(
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
@@ -855,15 +863,14 @@ struct GetRicherLambda {
 
         var notificationsSent = 0
         if !userTokens.isEmpty {
-            let payload = NotificationPayload(
-                title: "Weekly Paydown",
-                body: summaryText,
-                data: ["deepLink": "paydown"]
+            try await sendPerAccountPushes(
+                reports: reports,
+                userTokens: userTokens,
+                notificationClient: notificationClient
             )
-            try await notificationClient.send(payload, to: userTokens)
-            notificationsSent = userTokens.count
+            notificationsSent = reports.count * userTokens.count
         }
-        context.logger.info("Sent paydown push to user \(request.username): \(notificationsSent) device(s)")
+        context.logger.info("Sent \(reports.count) paydown push(es) to user \(request.username): \(userTokens.count) device(s)")
 
         struct SendReportResult: Encodable {
             let status: String

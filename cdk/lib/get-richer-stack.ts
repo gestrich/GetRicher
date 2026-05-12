@@ -45,12 +45,10 @@ export class GetRicherStack extends Stack {
 
     const githubActions = new GitHubActionsConstruct(this, 'GitHubActions');
 
-    new MonitoringConstruct(this, 'Monitoring', {
-      lambdaFunction: lambdaFunc.function,
-      scheduleExpression: config.monitoring.scheduleExpression,
-      appName: 'GetRicher',
-      releaseLookbackHours: config.monitoring.releaseLookbackHours
-    });
+    // MonitoringConstruct removed: it created a legacy hourly EventBridge rule that fired the
+    // Lambda with no payload, triggering the legacy `task: nil` branch which ran BOTH the
+    // hourly refresh AND the daily report — producing an unintended push every hour.
+    // Scheduled work is now handled by HourlyRefreshRule + DailyReportRule inside LambdaConstruct.
 
     Tags.of(this).add('Environment', config.environment);
     Tags.of(this).add('Application', 'get-richer');
