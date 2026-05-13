@@ -122,6 +122,9 @@ struct SettingsView: View {
                     NavigationLink("Vendors") {
                         VendorListView(accountId: nil)
                     }
+                    NavigationLink("Notification Subscriptions") {
+                        NotificationSubscriptionsView()
+                    }
                 }
 
                 Section("Diagnostics") {

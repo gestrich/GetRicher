@@ -17,6 +17,7 @@ struct FinanceApp: App {
     @State private var weeklyPaydownModel = WeeklyPaydownModel()
     @State private var logsModel = LogsModel()
     @State private var notificationsModel: NotificationsModel
+    @State private var notificationSubscriptionsModel: NotificationSubscriptionsModel
     @State private var reviewInboxModel = ReviewInboxModel()
     @State private var lastModeChangeCount: Int = 0
     @State private var otelService: OTelLoggingService?
@@ -67,6 +68,7 @@ struct FinanceApp: App {
         _userAccountModel = State(initialValue: userAccountModel)
         _adminModel = State(initialValue: AdminModel())
         _notificationsModel = State(initialValue: NotificationsModel(userAccountModel: userAccountModel))
+        _notificationSubscriptionsModel = State(initialValue: NotificationSubscriptionsModel(userAccountModel: userAccountModel))
 
         do {
             modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferRule.self)
@@ -85,6 +87,7 @@ struct FinanceApp: App {
                 .environment(weeklyPaydownModel)
                 .environment(logsModel)
                 .environment(notificationsModel)
+                .environment(notificationSubscriptionsModel)
                 .environment(reviewInboxModel)
                 .modelContainer(modelContainer)
                 .task {

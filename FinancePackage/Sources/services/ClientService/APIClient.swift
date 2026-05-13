@@ -269,6 +269,58 @@ extension APIClient {
     }
 }
 
+// MARK: - Notification subscriptions
+
+extension APIClient {
+    public func listNotificationSubscriptions(username: String, password: String) async throws -> [NotificationSubscription] {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password),
+        ]
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/notification-subscriptions?\(query)")
+        return try decodeOrThrow([NotificationSubscription].self, from: data)
+    }
+
+    public func upsertNotificationSubscription(
+        username: String,
+        password: String,
+        subscription: NotificationSubscriptionWrite
+    ) async throws -> NotificationSubscription {
+        struct Body: Encodable {
+            let username: String
+            let password: String
+            let accountId: Int
+            let daysOfWeek: [DayOfWeek]
+            let hour: Int
+            let timezone: String
+            let enabled: Bool
+        }
+        let body = try JSONEncoder().encode(Body(
+            username: username,
+            password: password,
+            accountId: subscription.accountId,
+            daysOfWeek: subscription.daysOfWeek,
+            hour: subscription.hour,
+            timezone: subscription.timezone,
+            enabled: subscription.enabled
+        ))
+        let data = try await post("/api/notification-subscriptions", body: body, headers: ["Content-Type": "application/json"])
+        return try decodeOrThrow(NotificationSubscription.self, from: data)
+    }
+
+    public func deleteNotificationSubscription(username: String, password: String, accountId: Int) async throws {
+        struct Body: Encodable {
+            let username: String
+            let password: String
+            let accountId: Int
+        }
+        let body = try JSONEncoder().encode(Body(username: username, password: password, accountId: accountId))
+        _ = try await post("/api/notification-subscriptions/delete", body: body, headers: ["Content-Type": "application/json"])
+    }
+}
+
 // MARK: - Admin
 
 extension APIClient {

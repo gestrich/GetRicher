@@ -282,4 +282,24 @@ final class GetRicherUITests: XCTestCase {
         sleep(1)
         captureScreenshot(app, name: "VendorList")
     }
+
+    // MARK: - Notification Subscriptions
+
+    @MainActor
+    func testNotificationSubscriptionsScreenshot() throws {
+        let app = launchApp()
+        navigateToSettings(app)
+
+        // The link sits in the "Management" section which may be below the fold.
+        let subsLink = app.staticTexts["Notification Subscriptions"]
+        if !subsLink.waitForExistence(timeout: 3) {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(subsLink.waitForExistence(timeout: 5), "Notification Subscriptions link should exist")
+        subsLink.tap()
+
+        sleep(2)
+        captureScreenshot(app, name: "NotificationSubscriptions")
+    }
 }

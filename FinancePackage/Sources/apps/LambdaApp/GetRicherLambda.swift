@@ -30,6 +30,7 @@ struct GetRicherLambda {
             let transactionStore: any TransactionStoreProtocol = LoggingTransactionStore()
             let transferRuleStore: any TransferRuleStoreProtocol = LoggingTransferRuleStore()
             let vendorStore: any VendorStoreProtocol = LoggingVendorStore()
+            let subscriptionStore: any NotificationSubscriptionStoreProtocol = LoggingNotificationSubscriptionStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
             let iosLogsClient: any IOSLogsClientProtocol = LoggingIOSLogsClient()
             let runtime = LambdaRuntime { (event: LambdaDispatchEvent, context: LambdaContext) -> APIGatewayResponse in
@@ -48,6 +49,7 @@ struct GetRicherLambda {
                     transactionStore: transactionStore,
                     transferRuleStore: transferRuleStore,
                     vendorStore: vendorStore,
+                    subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -63,6 +65,7 @@ struct GetRicherLambda {
             let transactionStore = DynamoDBTransactionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let transferRuleStore = DynamoDBTransferRuleStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let vendorStore = DynamoDBVendorStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let subscriptionStore = DynamoDBNotificationSubscriptionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let snsAppArn = ProcessInfo.processInfo.environment["SNS_PLATFORM_ARN"] ?? ""
             let notificationClient: any PushNotificationClientProtocol = snsAppArn.isEmpty
                 ? LoggingPushNotificationClient()
@@ -84,6 +87,7 @@ struct GetRicherLambda {
                     transactionStore: transactionStore,
                     transferRuleStore: transferRuleStore,
                     vendorStore: vendorStore,
+                    subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -106,6 +110,7 @@ struct GetRicherLambda {
         transactionStore: any TransactionStoreProtocol,
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
@@ -125,6 +130,7 @@ struct GetRicherLambda {
                     transactionStore: transactionStore,
                     transferRuleStore: transferRuleStore,
                     vendorStore: vendorStore,
+                    subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
                     iosLogsClient: iosLogsClient
                 )
@@ -141,21 +147,23 @@ struct GetRicherLambda {
                         context: context
                     )
                     return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
-                case "report":
-                    await handleDailyReport(
+                case "push":
+                    await handleSubscriptionPushTick(
+                        now: Date(),
                         userStore: userStore,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
                         transferRuleStore: transferRuleStore,
                         vendorStore: vendorStore,
                         tokenStore: tokenStore,
+                        subscriptionStore: subscriptionStore,
                         notificationClient: notificationClient,
                         context: context
                     )
                     return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ok"}"#)
                 default:
                     // Unknown / no payload: ignore. The canonical scheduled tasks are
-                    // "refresh" (hourly) and "report" (daily), both wired with explicit payloads.
+                    // "refresh" (hourly LM→DynamoDB sync) and "push" (hourly subscription evaluator).
                     context.logger.warning("Ignoring scheduled trigger with unknown task=\(task ?? "<none>")")
                     return APIGatewayResponse(statusCode: .ok, headers: [:], body: #"{"status":"ignored"}"#)
                 }
@@ -183,6 +191,7 @@ struct GetRicherLambda {
         transactionStore: any TransactionStoreProtocol,
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         iosLogsClient: any IOSLogsClientProtocol
     ) async throws -> APIGatewayResponse {
@@ -211,6 +220,7 @@ struct GetRicherLambda {
                 transferRuleStore: transferRuleStore,
                 vendorStore: vendorStore,
                 tokenStore: tokenStore,
+                subscriptionStore: subscriptionStore,
                 notificationClient: notificationClient,
                 context: context
             )
@@ -222,8 +232,31 @@ struct GetRicherLambda {
                 transactionStore: transactionStore,
                 transferRuleStore: transferRuleStore,
                 vendorStore: vendorStore,
+                subscriptionStore: subscriptionStore,
                 notificationClient: notificationClient,
                 event: request,
+                context: context
+            )
+        } else if request.httpMethod == .get && request.path == "/api/notification-subscriptions" {
+            return try await handleListSubscriptions(
+                event: request,
+                userStore: userStore,
+                subscriptionStore: subscriptionStore,
+                context: context
+            )
+        } else if request.httpMethod == .post && request.path == "/api/notification-subscriptions" {
+            return try await handleUpsertSubscription(
+                event: request,
+                userStore: userStore,
+                accountStore: accountStore,
+                subscriptionStore: subscriptionStore,
+                context: context
+            )
+        } else if request.httpMethod == .post && request.path == "/api/notification-subscriptions/delete" {
+            return try await handleDeleteSubscription(
+                event: request,
+                userStore: userStore,
+                subscriptionStore: subscriptionStore,
                 context: context
             )
         } else if request.httpMethod == .get && request.path == "/api/weekly-paydown" {
@@ -561,78 +594,105 @@ struct GetRicherLambda {
         return (reports: reports, notificationBody: notificationBody)
     }
 
-    /// Iterates all users, computes each user's paydown from DynamoDB, and pushes to that user's devices.
-    /// Sends one notification per credit account so each gets its own banner (iOS truncates
-    /// concatenated bodies and would otherwise hide all but the first account in the lock-screen preview).
-    private static func handleDailyReport(
+    /// Hourly cron tick. Iterates all users with notification subscriptions, evaluates each
+    /// against the current time + timezone, and sends one combined push per user listing the
+    /// accounts whose schedule matched. Dedupes via `lastSentLocalDate` on each subscription so
+    /// the same hour-day-tz combination only fires once per local day.
+    private static func handleSubscriptionPushTick(
+        now: Date,
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async {
         do {
-            let users = try await userStore.fetchAll()
+            let allSubs = try await subscriptionStore.fetchAll()
+            let byUser = Dictionary(grouping: allSubs, by: { $0.userId })
             let allTokens = try await tokenStore.fetchAll()
-            context.logger.info("Daily report: processing \(users.count) user(s)")
-            for user in users {
+            context.logger.info("Push tick: \(byUser.count) user(s) with subscription(s)")
+            for (userId, subs) in byUser {
+                let fired = ScheduleEvaluator.fire(subs: subs, now: now)
+                guard !fired.isEmpty else { continue }
                 do {
-                    let (reports, _) = try await computeCurrentPeriodFromDynamoDB(
-                        userId: user.username,
+                    try await sendCombinedPush(
+                        userId: userId,
+                        fired: fired,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
                         transferRuleStore: transferRuleStore,
                         vendorStore: vendorStore,
+                        allTokens: allTokens,
+                        subscriptionStore: subscriptionStore,
+                        notificationClient: notificationClient,
+                        recordLastSent: true,
                         context: context
                     )
-                    let userTokens = allTokens.filter { $0.userId == user.username }
-                    if userTokens.isEmpty {
-                        context.logger.info("User \(user.username): no device tokens, skipping push")
-                        continue
-                    }
-                    try await sendPerAccountPushes(
-                        reports: reports,
-                        userTokens: userTokens,
-                        notificationClient: notificationClient
-                    )
-                    context.logger.info("Sent \(reports.count) paydown push(es) to user \(user.username): \(userTokens.count) device(s) each")
                 } catch {
-                    context.logger.error("Failed report for user \(user.username): \(error)")
+                    context.logger.error("Failed push tick for user \(userId): \(error)")
                 }
             }
         } catch {
-            context.logger.error("Daily report failed to load users: \(error)")
+            context.logger.error("Push tick failed to load subscriptions: \(error)")
         }
     }
 
-    /// Sends one push notification per credit-card account so each account's value is visible
-    /// in the lock-screen preview without truncation.
-    private static func sendPerAccountPushes(
-        reports: [AccountPaydownReport],
-        userTokens: [DeviceToken],
-        notificationClient: any PushNotificationClientProtocol
+    /// Computes the current-period paydown for `userId`, filters to the subscribed accounts in
+    /// `fired`, builds one combined push payload, and sends it to all of the user's devices.
+    /// When `recordLastSent` is true, each fired subscription's `lastSentLocalDate` is updated
+    /// (cron path). On the fire-now path callers pass false so a manual fire doesn't suppress the
+    /// next scheduled tick.
+    private static func sendCombinedPush(
+        userId: String,
+        fired: [ScheduleEvaluator.FiredSubscription],
+        accountStore: any AccountStoreProtocol,
+        transactionStore: any TransactionStoreProtocol,
+        transferRuleStore: any TransferRuleStoreProtocol,
+        vendorStore: any VendorStoreProtocol,
+        allTokens: [DeviceToken],
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
+        notificationClient: any PushNotificationClientProtocol,
+        recordLastSent: Bool,
+        context: LambdaContext
     ) async throws {
-        for report in reports {
-            let amount = String(format: "$%.2f", report.netPeriodSpending)
-            let title = report.account.displayName
-            let body = "Amount to pay: \(amount)"
-            let payload = NotificationPayload(
-                title: title,
-                body: body,
-                data: [
-                    "deepLink": "paydown",
-                    "accountId": String(report.account.lunchMoneyId),
-                ]
-            )
+        let (allReports, _) = try await computeCurrentPeriodFromDynamoDB(
+            userId: userId,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
+            transferRuleStore: transferRuleStore,
+            vendorStore: vendorStore,
+            context: context
+        )
+        let firedAccountIds = Set(fired.map { $0.subscription.accountId })
+        let reports = allReports.filter { firedAccountIds.contains($0.account.lunchMoneyId) }
+        guard let payload = CombinedReportPushBuilder.build(reports: reports) else {
+            context.logger.info("User \(userId): no matching reports for fired subs (accounts may not exist)")
+            return
+        }
+        let userTokens = allTokens.filter { $0.userId == userId }
+        if userTokens.isEmpty {
+            context.logger.info("User \(userId): fired \(fired.count) sub(s) but no device tokens registered")
+        } else {
             try await notificationClient.send(payload, to: userTokens)
+            context.logger.info("Push tick: sent 1 combined push to user \(userId) covering \(fired.count) sub(s), \(userTokens.count) device(s)")
+        }
+        if recordLastSent {
+            for f in fired {
+                try? await subscriptionStore.markSent(
+                    userId: userId,
+                    accountId: f.subscription.accountId,
+                    localDate: f.localDate
+                )
+            }
         }
     }
 
-    /// Admin/manual trigger for the daily report flow — iterates all users, computes from DynamoDB, pushes per-user.
-    /// Same logic as the EventBridge "report" task.
+    /// Admin/manual trigger. Fires every user's enabled subscriptions immediately, ignoring the
+    /// schedule (but still requires the user to have at least one enabled subscription).
     private static func handleGenerateReport(
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
@@ -640,19 +700,38 @@ struct GetRicherLambda {
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        await handleDailyReport(
-            userStore: userStore,
-            accountStore: accountStore,
-            transactionStore: transactionStore,
-            transferRuleStore: transferRuleStore,
-            vendorStore: vendorStore,
-            tokenStore: tokenStore,
-            notificationClient: notificationClient,
-            context: context
-        )
+        let allSubs = try await subscriptionStore.fetchAll()
+        let byUser = Dictionary(grouping: allSubs.filter { $0.enabled }, by: { $0.userId })
+        let allTokens = try await tokenStore.fetchAll()
+        context.logger.info("Admin generate-report: \(byUser.count) user(s) with enabled subscription(s)")
+        let now = Date()
+        for (userId, subs) in byUser {
+            let fired = subs.compactMap { sub -> ScheduleEvaluator.FiredSubscription? in
+                let localDate = ScheduleEvaluator.localDate(now: now, timezone: sub.timezone) ?? ""
+                return ScheduleEvaluator.FiredSubscription(subscription: sub, localDate: localDate)
+            }
+            do {
+                try await sendCombinedPush(
+                    userId: userId,
+                    fired: fired,
+                    accountStore: accountStore,
+                    transactionStore: transactionStore,
+                    transferRuleStore: transferRuleStore,
+                    vendorStore: vendorStore,
+                    allTokens: allTokens,
+                    subscriptionStore: subscriptionStore,
+                    notificationClient: notificationClient,
+                    recordLastSent: false,
+                    context: context
+                )
+            } catch {
+                context.logger.error("Failed admin generate for user \(userId): \(error)")
+            }
+        }
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
@@ -818,6 +897,10 @@ struct GetRicherLambda {
         )
     }
 
+    /// User-triggered "fire now" — sends one combined push covering every enabled
+    /// subscription the user has, ignoring the schedule. Used by the CLI test path and the
+    /// "Send Report Now" button in iOS Settings. Does not update `lastSentLocalDate` so the
+    /// next scheduled tick still fires.
     private static func handleSendMyReport(
         tokenStore: any DeviceTokenStoreProtocol,
         userStore: any UserStoreProtocol,
@@ -825,6 +908,7 @@ struct GetRicherLambda {
         transactionStore: any TransactionStoreProtocol,
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
         event: APIGatewayRequest,
         context: LambdaContext
@@ -849,40 +933,187 @@ struct GetRicherLambda {
             )
         }
 
-        let (reports, summaryText) = try await computeCurrentPeriodFromDynamoDB(
+        let subs = try await subscriptionStore.fetch(userId: user.username).filter { $0.enabled }
+        if subs.isEmpty {
+            context.logger.info("send-my-report: user \(user.username) has no enabled subscriptions")
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"status":"ok","notificationsSent":0,"reason":"no subscriptions"}"#
+            )
+        }
+        let now = Date()
+        let fired = subs.map { sub -> ScheduleEvaluator.FiredSubscription in
+            let localDate = ScheduleEvaluator.localDate(now: now, timezone: sub.timezone) ?? ""
+            return ScheduleEvaluator.FiredSubscription(subscription: sub, localDate: localDate)
+        }
+        let allTokens = try await tokenStore.fetchAll()
+        try await sendCombinedPush(
             userId: user.username,
+            fired: fired,
             accountStore: accountStore,
             transactionStore: transactionStore,
             transferRuleStore: transferRuleStore,
             vendorStore: vendorStore,
+            allTokens: allTokens,
+            subscriptionStore: subscriptionStore,
+            notificationClient: notificationClient,
+            recordLastSent: false,
             context: context
         )
-
-        let allTokens = try await tokenStore.fetchAll()
-        let userTokens = allTokens.filter { $0.userId == request.username }
-
-        var notificationsSent = 0
-        if !userTokens.isEmpty {
-            try await sendPerAccountPushes(
-                reports: reports,
-                userTokens: userTokens,
-                notificationClient: notificationClient
-            )
-            notificationsSent = reports.count * userTokens.count
-        }
-        context.logger.info("Sent \(reports.count) paydown push(es) to user \(request.username): \(userTokens.count) device(s)")
-
+        let userTokenCount = allTokens.filter { $0.userId == user.username }.count
         struct SendReportResult: Encodable {
             let status: String
-            let body: String
+            let subscriptions: Int
             let notificationsSent: Int
         }
-        let result = SendReportResult(status: "ok", body: summaryText, notificationsSent: notificationsSent)
+        let result = SendReportResult(
+            status: "ok",
+            subscriptions: fired.count,
+            notificationsSent: userTokenCount == 0 ? 0 : 1
+        )
         let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
             body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    // MARK: - Notification subscription routes
+
+    private static func handleListSubscriptions(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let username = event.queryStringParameters?["username"],
+              let password = event.queryStringParameters?["password"]
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing username or password"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: username),
+              UserAccount.hashPassword(password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        let subs = try await subscriptionStore.fetch(userId: user.username)
+        context.logger.info("Listed \(subs.count) subscription(s) for user \(user.username)")
+        let data = try JSONEncoder().encode(subs)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "[]"
+        )
+    }
+
+    private static func handleUpsertSubscription(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        accountStore: any AccountStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(UpsertSubscriptionRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: request.username),
+              UserAccount.hashPassword(request.password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        guard !request.daysOfWeek.isEmpty,
+              (0...23).contains(request.hour),
+              TimeZone(identifier: request.timezone) != nil
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid schedule (daysOfWeek non-empty, hour 0-23, valid IANA timezone)"}"#
+            )
+        }
+        let userAccounts = try await accountStore.fetchAll(userId: user.username)
+        guard userAccounts.contains(where: { $0.lunchMoneyId == request.accountId }) else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"accountId does not belong to user"}"#
+            )
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let existing = try await subscriptionStore.find(userId: user.username, accountId: request.accountId)
+        let subscription = NotificationSubscription(
+            userId: user.username,
+            accountId: request.accountId,
+            daysOfWeek: request.daysOfWeek,
+            hour: request.hour,
+            timezone: request.timezone,
+            enabled: request.enabled,
+            lastSentLocalDate: existing?.lastSentLocalDate,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now
+        )
+        try await subscriptionStore.upsert(subscription)
+        context.logger.info("Upserted subscription for user \(user.username) account \(request.accountId)")
+        let data = try JSONEncoder().encode(subscription)
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: String(data: data, encoding: .utf8) ?? "{}"
+        )
+    }
+
+    private static func handleDeleteSubscription(
+        event: APIGatewayRequest,
+        userStore: any UserStoreProtocol,
+        subscriptionStore: any NotificationSubscriptionStoreProtocol,
+        context: LambdaContext
+    ) async throws -> APIGatewayResponse {
+        guard let bodyString = event.body,
+              let bodyData = bodyString.data(using: .utf8),
+              let request = try? JSONDecoder().decode(DeleteSubscriptionRequest.self, from: bodyData)
+        else {
+            return APIGatewayResponse(
+                statusCode: .badRequest,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Missing or invalid body"}"#
+            )
+        }
+        guard let user = try await userStore.find(username: request.username),
+              UserAccount.hashPassword(request.password) == user.passwordHash
+        else {
+            return APIGatewayResponse(
+                statusCode: .unauthorized,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"error":"Invalid credentials"}"#
+            )
+        }
+        try await subscriptionStore.delete(userId: user.username, accountId: request.accountId)
+        context.logger.info("Deleted subscription for user \(user.username) account \(request.accountId)")
+        return APIGatewayResponse(
+            statusCode: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: #"{"status":"ok"}"#
         )
     }
 
@@ -1556,6 +1787,22 @@ private struct RefreshRequest: Decodable {
 
 private struct AdminUpdateLMTokenRequest: Decodable {
     let lmToken: String
+}
+
+private struct UpsertSubscriptionRequest: Decodable {
+    let username: String
+    let password: String
+    let accountId: Int
+    let daysOfWeek: [DayOfWeek]
+    let hour: Int
+    let timezone: String
+    let enabled: Bool
+}
+
+private struct DeleteSubscriptionRequest: Decodable {
+    let username: String
+    let password: String
+    let accountId: Int
 }
 
 // MARK: - iOS Logs Client

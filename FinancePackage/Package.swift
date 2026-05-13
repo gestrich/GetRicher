@@ -59,6 +59,7 @@ var targets: [Target] = [
         name: "NotificationService",
         dependencies: [
             .target(name: "FinanceCoreSDK"),
+            .target(name: "ReportingService"),
             .product(name: "SotoDynamoDB", package: "soto"),
             .product(name: "SotoSNS", package: "soto"),
         ],
@@ -89,7 +90,7 @@ var targets: [Target] = [
     ),
     .testTarget(
         name: "NotificationServiceTests",
-        dependencies: ["NotificationService", "FinanceCoreSDK"],
+        dependencies: ["NotificationService", "FinanceCoreSDK", "ReportingService"],
         path: "Tests/NotificationServiceTests"
     ),
     // Apps Layer
@@ -160,6 +161,7 @@ targets.append(contentsOf: [
         dependencies: [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .target(name: "ClientService"),
+            .target(name: "FinanceCoreSDK"),
         ],
         path: "Sources/apps/CLIApp",
         swiftSettings: [

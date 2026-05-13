@@ -104,15 +104,17 @@ export class LambdaConstruct extends Construct {
       event: events.RuleTargetInput.fromObject({ task: 'refresh' }),
     }));
 
-    // Daily paydown push: 9:00 AM UTC = 4 AM EST / 5 AM EDT.
-    // (EventBridge Rule doesn't support timezones; UTC time shifts by ±1h across DST.)
-    const dailyReportRule = new events.Rule(this, 'DailyReportRule', {
-      schedule: events.Schedule.cron({ minute: '0', hour: '9' }),
-      description: 'Daily weekly-paydown push notification (~5 AM Eastern)',
+    // Hourly subscription evaluator. Fires at minute 0 alongside the refresh rule, but
+    // independently. Each invocation iterates NotificationSubscription records and sends a
+    // single combined push per user whose schedule matches the current hour in their
+    // per-subscription timezone. Replaces the legacy "all users at 9 UTC" daily push.
+    const hourlyPushRule = new events.Rule(this, 'HourlyPushRule', {
+      schedule: events.Schedule.cron({ minute: '0' }),
+      description: 'Hourly notification-subscription evaluator (opt-in per-account pushes)',
       enabled: true
     });
-    dailyReportRule.addTarget(new targets.LambdaFunction(this.function, {
-      event: events.RuleTargetInput.fromObject({ task: 'report' }),
+    hourlyPushRule.addTarget(new targets.LambdaFunction(this.function, {
+      event: events.RuleTargetInput.fromObject({ task: 'push' }),
     }));
   }
 }
