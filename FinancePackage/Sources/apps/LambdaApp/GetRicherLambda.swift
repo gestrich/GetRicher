@@ -923,24 +923,36 @@ struct GetRicherLambda {
             )
         }
 
-        let subs = try await subscriptionStore.fetch(userId: user.username)
-        if subs.isEmpty {
-            context.logger.info("send-my-report: user \(user.username) has no subscriptions")
+        struct SendReportResult: Encodable {
+            let status: String
+            let firedCount: Int
+            let notificationsSent: Int
+            let reason: String?
+        }
+        func respond(_ result: SendReportResult) throws -> APIGatewayResponse {
+            let data = try JSONEncoder().encode(result)
             return APIGatewayResponse(
                 statusCode: .ok,
                 headers: ["Content-Type": "application/json"],
-                body: #"{"status":"ok","firedCount":0,"reason":"no subscriptions"}"#
+                body: String(data: data, encoding: .utf8) ?? "{}"
             )
+        }
+
+        let subs = try await subscriptionStore.fetch(userId: user.username)
+        if subs.isEmpty {
+            context.logger.info("send-my-report: user \(user.username) has no subscriptions")
+            return try respond(SendReportResult(status: "ok", firedCount: 0, notificationsSent: 0, reason: "no subscriptions"))
         }
         let now = Date()
         let fired = ScheduleEvaluator.fire(subs: subs, now: now)
         if fired.isEmpty {
             context.logger.info("send-my-report: user \(user.username) has \(subs.count) sub(s) but none due (current time before scheduled hour, or already sent today)")
-            return APIGatewayResponse(
-                statusCode: .ok,
-                headers: ["Content-Type": "application/json"],
-                body: #"{"status":"ok","firedCount":0,"reason":"nothing due (before scheduled hour, or already sent today)"}"#
-            )
+            return try respond(SendReportResult(
+                status: "ok",
+                firedCount: 0,
+                notificationsSent: 0,
+                reason: "nothing due (before scheduled hour, or already sent today)"
+            ))
         }
         let allTokens = try await tokenStore.fetchAll()
         try await sendCombinedPush(
@@ -957,22 +969,12 @@ struct GetRicherLambda {
             context: context
         )
         let userTokenCount = allTokens.filter { $0.userId == user.username }.count
-        struct SendReportResult: Encodable {
-            let status: String
-            let firedCount: Int
-            let notificationsSent: Int
-        }
-        let result = SendReportResult(
+        return try respond(SendReportResult(
             status: "ok",
             firedCount: fired.count,
-            notificationsSent: userTokenCount == 0 ? 0 : 1
-        )
-        let data = try JSONEncoder().encode(result)
-        return APIGatewayResponse(
-            statusCode: .ok,
-            headers: ["Content-Type": "application/json"],
-            body: String(data: data, encoding: .utf8) ?? "{}"
-        )
+            notificationsSent: userTokenCount == 0 ? 0 : 1,
+            reason: userTokenCount == 0 ? "no device tokens registered" : nil
+        ))
     }
 
     // MARK: - Notification subscription routes

@@ -259,13 +259,23 @@ extension APIClient {
         return try decodeOrThrow(WeeklyPaydown.self, from: data)
     }
 
-    public func sendReport(username: String, password: String) async throws {
+    public struct SendReportResult: Decodable, Sendable {
+        public let status: String
+        public let firedCount: Int
+        public let notificationsSent: Int
+        public let reason: String?
+
+        public var didFire: Bool { firedCount > 0 && notificationsSent > 0 }
+    }
+
+    public func sendReport(username: String, password: String) async throws -> SendReportResult {
         struct SendReportBody: Encodable {
             let username: String
             let password: String
         }
         let body = try JSONEncoder().encode(SendReportBody(username: username, password: password))
-        _ = try await post("/api/send-my-report", body: body, headers: ["Content-Type": "application/json"])
+        let data = try await post("/api/send-my-report", body: body, headers: ["Content-Type": "application/json"])
+        return try decodeOrThrow(SendReportResult.self, from: data)
     }
 }
 

@@ -1,3 +1,4 @@
+import ClientService
 import SwiftUI
 
 struct SettingsView: View {
@@ -63,9 +64,20 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        if reportSent {
-                            Label("Sent!", systemImage: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                        if reportSent, let result = userAccountModel.lastSendReportResult {
+                            if result.didFire {
+                                Label(
+                                    "Sent (\(result.firedCount) sub\(result.firedCount == 1 ? "" : "s"))",
+                                    systemImage: "checkmark.circle.fill"
+                                ).foregroundColor(.green)
+                            } else {
+                                Label(
+                                    result.reason ?? "Nothing due",
+                                    systemImage: "info.circle"
+                                )
+                                .foregroundColor(.secondary)
+                                .font(.footnote)
+                            }
                         }
                         if let error = userAccountModel.errorMessage {
                             Text(error)

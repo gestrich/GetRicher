@@ -11,6 +11,7 @@ final class UserAccountModel {
     var password: String = ""
     var isRegistered: Bool = false
     var errorMessage: String?
+    var lastSendReportResult: APIClient.SendReportResult?
 
     private let keychainClient: any KeychainClientProtocol
     var apiClient: APIClient?
@@ -88,10 +89,13 @@ final class UserAccountModel {
 
     func sendReportNow(backendURL: String) async {
         errorMessage = nil
+        lastSendReportResult = nil
         guard let client = apiClient else { return }
         logger.info("Send report triggered by user: \(username)")
         do {
-            try await client.sendReport(username: username, password: password)
+            let result = try await client.sendReport(username: username, password: password)
+            lastSendReportResult = result
+            logger.info("Send report result: firedCount=\(result.firedCount) notificationsSent=\(result.notificationsSent) reason=\(result.reason ?? "")")
         } catch {
             logger.error("Send report failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription

@@ -151,11 +151,15 @@ struct NotificationsSendNowCommand: AsyncParsableCommand {
         let baseURL = config.baseURL
         let username = config.username
         let password = config.password
-        try await Task { @MainActor in
+        let result = try await Task { @MainActor in
             let client = APIClient(baseURL: baseURL, serviceName: "CLI")
-            try await client.sendReport(username: username, password: password)
+            return try await client.sendReport(username: username, password: password)
         }.value
-        print("Sent.")
+        if result.didFire {
+            print("Fired \(result.firedCount) subscription(s) — sent \(result.notificationsSent) push.")
+        } else {
+            print("No push sent — \(result.reason ?? "nothing due")")
+        }
     }
 }
 
