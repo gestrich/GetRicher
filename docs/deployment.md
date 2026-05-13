@@ -246,6 +246,50 @@ Check CloudWatch Logs for the `get-richer` Lambda function. Common causes: missi
 
 ---
 
+## Push notifications — out-of-band SNS configuration
+
+The SNS platform application `GetRicherIOS-Sandbox` is **not managed by CDK** — only its ARN is passed to the Lambda via `SNS_PLATFORM_ARN`. Two attributes on the platform application are configured manually and must be re-applied if the application is ever recreated:
+
+| Attribute | Value | Purpose |
+|---|---|---|
+| `FailureFeedbackRoleArn` | `arn:aws:iam::767387487465:role/sns-apns-feedback-getricher` | Lets SNS write APNS rejection details (BadDeviceToken, Unregistered, etc.) to CloudWatch Logs |
+| `SuccessFeedbackRoleArn` | same | Lets SNS log successful APNS handoffs |
+| `SuccessFeedbackSampleRate` | `100` (drop to `0` once stable) | % of successes to log |
+
+**Re-applying after a platform-app recreation:**
+
+```bash
+ROLE_ARN="arn:aws:iam::767387487465:role/sns-apns-feedback-getricher"
+PLATFORM_ARN="arn:aws:sns:us-east-1:767387487465:app/APNS_SANDBOX/GetRicherIOS-Sandbox"
+aws sns set-platform-application-attributes \
+  --platform-application-arn "$PLATFORM_ARN" \
+  --attributes "FailureFeedbackRoleArn=$ROLE_ARN,SuccessFeedbackRoleArn=$ROLE_ARN,SuccessFeedbackSampleRate=100" \
+  --profile production --region us-east-1
+```
+
+**Recreating the IAM role from scratch** (only needed if `sns-apns-feedback-getricher` is also deleted):
+
+Trust policy — allow `sns.amazonaws.com` to assume:
+```json
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"sns.amazonaws.com"},"Action":"sts:AssumeRole"}]}
+```
+
+Inline policy — grant CloudWatch Logs write:
+```json
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:PutRetentionPolicy"],"Resource":"*"}]}
+```
+
+**Where to read the feedback** (CloudWatch auto-creates these on first event):
+- Success: `sns/us-east-1/767387487465/GetRicherIOS-Sandbox`
+- Failure: `sns/us-east-1/767387487465/GetRicherIOS-Sandbox/Failure`
+
+```bash
+aws logs tail sns/us-east-1/767387487465/GetRicherIOS-Sandbox/Failure \
+  --since 1h --profile production --region us-east-1
+```
+
+---
+
 ## Key Files
 
 | File | Purpose |

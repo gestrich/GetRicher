@@ -3,9 +3,16 @@ import Foundation
 
 /// Pure function — given a list of subscriptions and a moment in time, return the
 /// subset that should fire right now. A subscription fires when, in its own
-/// timezone: today's day-of-week is in `daysOfWeek`, the current hour matches
-/// `hour`, the sub is `enabled`, and we haven't already sent for today's local
-/// date (`lastSentLocalDate`).
+/// timezone:
+///   - today's day-of-week is in `daysOfWeek`
+///   - the current hour is **at or after** `hour`
+///   - the sub is `enabled`
+///   - it hasn't already fired today (`lastSentLocalDate != today in sub's tz`)
+///
+/// The "at or after" rule (rather than "exactly at") means a missed cron tick still
+/// fires on the next tick the same day, and an on-demand sweep (`/api/send-my-report`)
+/// after the scheduled hour fires whatever hasn't gone out yet. Same-day dedupe via
+/// `lastSentLocalDate` ensures the push fires at most once per scheduled slot per day.
 public enum ScheduleEvaluator {
     public struct FiredSubscription: Sendable, Equatable {
         public let subscription: NotificationSubscription
@@ -29,7 +36,7 @@ public enum ScheduleEvaluator {
                   let day = DayOfWeek.from(calendarWeekday: weekday)
             else { return nil }
             guard sub.daysOfWeek.contains(day) else { return nil }
-            guard currentHour == sub.hour else { return nil }
+            guard currentHour >= sub.hour else { return nil }
             let localDate = formatLocalDate(components: components)
             if sub.lastSentLocalDate == localDate { return nil }
             return FiredSubscription(subscription: sub, localDate: localDate)

@@ -51,10 +51,34 @@ struct ScheduleEvaluatorTests {
         #expect(ScheduleEvaluator.fire(subs: [s], now: now).isEmpty)
     }
 
-    @Test("Does not fire on a non-matching hour")
-    func wrongHour() {
-        let now = Self.date("2026-05-12T14:00:00Z")  // 10:00 NY
+    @Test("Does not fire before the scheduled hour")
+    func beforeScheduledHour() {
+        // 2026-05-12 12:00 UTC == 08:00 NY (EDT, UTC-4). Schedule is 9 AM NY.
+        let now = Self.date("2026-05-12T12:00:00Z")
         let s = Self.sub(days: [.TUE], hour: 9, timezone: "America/New_York")
+        #expect(ScheduleEvaluator.fire(subs: [s], now: now).isEmpty)
+    }
+
+    @Test("Fires after the scheduled hour same day (catch-up / on-demand sweep)")
+    func firesAfterScheduledHour() {
+        // 2026-05-12 14:00 UTC == 10:00 NY. Schedule is 9 AM. Not yet sent today → fire.
+        let now = Self.date("2026-05-12T14:00:00Z")
+        let s = Self.sub(days: [.TUE], hour: 9, timezone: "America/New_York")
+        let fired = ScheduleEvaluator.fire(subs: [s], now: now)
+        #expect(fired.count == 1)
+        #expect(fired.first?.localDate == "2026-05-12")
+    }
+
+    @Test("Does not fire again later the same day after already firing")
+    func dedupesAfterEarlierFireToday() {
+        // 14:00 UTC == 10:00 NY. Schedule was 9. Already sent at 9 → lastSent today.
+        let now = Self.date("2026-05-12T14:00:00Z")
+        let s = Self.sub(
+            days: [.TUE],
+            hour: 9,
+            timezone: "America/New_York",
+            lastSentLocalDate: "2026-05-12"
+        )
         #expect(ScheduleEvaluator.fire(subs: [s], now: now).isEmpty)
     }
 

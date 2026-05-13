@@ -693,6 +693,10 @@ struct GetRicherLambda {
 
     /// Admin/manual trigger. Fires every user's enabled subscriptions immediately, ignoring the
     /// schedule (but still requires the user to have at least one enabled subscription).
+    /// Admin "Generate Report Now". Identical to the hourly cron sweep — runs
+    /// `ScheduleEvaluator.fire` across every user's subscriptions using the current
+    /// time and only fires what's actually due (after the scheduled hour, not yet
+    /// sent today). Records `lastSentLocalDate` so the cron doesn't double-send.
     private static func handleGenerateReport(
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
@@ -704,34 +708,18 @@ struct GetRicherLambda {
         notificationClient: any PushNotificationClientProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        let allSubs = try await subscriptionStore.fetchAll()
-        let byUser = Dictionary(grouping: allSubs.filter { $0.enabled }, by: { $0.userId })
-        let allTokens = try await tokenStore.fetchAll()
-        context.logger.info("Admin generate-report: \(byUser.count) user(s) with enabled subscription(s)")
-        let now = Date()
-        for (userId, subs) in byUser {
-            let fired = subs.compactMap { sub -> ScheduleEvaluator.FiredSubscription? in
-                let localDate = ScheduleEvaluator.localDate(now: now, timezone: sub.timezone) ?? ""
-                return ScheduleEvaluator.FiredSubscription(subscription: sub, localDate: localDate)
-            }
-            do {
-                try await sendCombinedPush(
-                    userId: userId,
-                    fired: fired,
-                    accountStore: accountStore,
-                    transactionStore: transactionStore,
-                    transferRuleStore: transferRuleStore,
-                    vendorStore: vendorStore,
-                    allTokens: allTokens,
-                    subscriptionStore: subscriptionStore,
-                    notificationClient: notificationClient,
-                    recordLastSent: false,
-                    context: context
-                )
-            } catch {
-                context.logger.error("Failed admin generate for user \(userId): \(error)")
-            }
-        }
+        await handleSubscriptionPushTick(
+            now: Date(),
+            userStore: userStore,
+            accountStore: accountStore,
+            transactionStore: transactionStore,
+            transferRuleStore: transferRuleStore,
+            vendorStore: vendorStore,
+            tokenStore: tokenStore,
+            subscriptionStore: subscriptionStore,
+            notificationClient: notificationClient,
+            context: context
+        )
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
@@ -897,10 +885,12 @@ struct GetRicherLambda {
         )
     }
 
-    /// User-triggered "fire now" — sends one combined push covering every enabled
-    /// subscription the user has, ignoring the schedule. Used by the CLI test path and the
-    /// "Send Report Now" button in iOS Settings. Does not update `lastSentLocalDate` so the
-    /// next scheduled tick still fires.
+    /// User-triggered sweep. Runs `ScheduleEvaluator.fire` for this user's enabled
+    /// subscriptions using the current time and fires whatever's due (after the
+    /// scheduled hour, not yet sent today). Records `lastSentLocalDate` so the next
+    /// cron tick doesn't double-send. If nothing is due — for example the scheduled
+    /// hour hasn't passed yet today, or it already fired — returns 200 with
+    /// `firedCount: 0` and an explanatory `reason`.
     private static func handleSendMyReport(
         tokenStore: any DeviceTokenStoreProtocol,
         userStore: any UserStoreProtocol,
@@ -933,19 +923,24 @@ struct GetRicherLambda {
             )
         }
 
-        let subs = try await subscriptionStore.fetch(userId: user.username).filter { $0.enabled }
+        let subs = try await subscriptionStore.fetch(userId: user.username)
         if subs.isEmpty {
-            context.logger.info("send-my-report: user \(user.username) has no enabled subscriptions")
+            context.logger.info("send-my-report: user \(user.username) has no subscriptions")
             return APIGatewayResponse(
                 statusCode: .ok,
                 headers: ["Content-Type": "application/json"],
-                body: #"{"status":"ok","notificationsSent":0,"reason":"no subscriptions"}"#
+                body: #"{"status":"ok","firedCount":0,"reason":"no subscriptions"}"#
             )
         }
         let now = Date()
-        let fired = subs.map { sub -> ScheduleEvaluator.FiredSubscription in
-            let localDate = ScheduleEvaluator.localDate(now: now, timezone: sub.timezone) ?? ""
-            return ScheduleEvaluator.FiredSubscription(subscription: sub, localDate: localDate)
+        let fired = ScheduleEvaluator.fire(subs: subs, now: now)
+        if fired.isEmpty {
+            context.logger.info("send-my-report: user \(user.username) has \(subs.count) sub(s) but none due (current time before scheduled hour, or already sent today)")
+            return APIGatewayResponse(
+                statusCode: .ok,
+                headers: ["Content-Type": "application/json"],
+                body: #"{"status":"ok","firedCount":0,"reason":"nothing due (before scheduled hour, or already sent today)"}"#
+            )
         }
         let allTokens = try await tokenStore.fetchAll()
         try await sendCombinedPush(
@@ -958,18 +953,18 @@ struct GetRicherLambda {
             allTokens: allTokens,
             subscriptionStore: subscriptionStore,
             notificationClient: notificationClient,
-            recordLastSent: false,
+            recordLastSent: true,
             context: context
         )
         let userTokenCount = allTokens.filter { $0.userId == user.username }.count
         struct SendReportResult: Encodable {
             let status: String
-            let subscriptions: Int
+            let firedCount: Int
             let notificationsSent: Int
         }
         let result = SendReportResult(
             status: "ok",
-            subscriptions: fired.count,
+            firedCount: fired.count,
             notificationsSent: userTokenCount == 0 ? 0 : 1
         )
         let data = try JSONEncoder().encode(result)
