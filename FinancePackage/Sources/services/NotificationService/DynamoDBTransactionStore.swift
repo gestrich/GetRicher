@@ -31,18 +31,25 @@ public struct DynamoDBTransactionStore: TransactionStoreProtocol {
     }
 
     public func fetch(userId: String, startDate: String, endDate: String) async throws -> [Transaction] {
-        let response = try await db.scan(.init(
-            expressionAttributeNames: ["#dt": "date"],
-            expressionAttributeValues: [
-                ":t": .s("transaction"),
-                ":u": .s(userId),
-                ":start": .s(startDate),
-                ":end": .s(endDate)
-            ],
-            filterExpression: "recordType = :t AND userId = :u AND #dt BETWEEN :start AND :end",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { item in
+        var items: [[String: DynamoDB.AttributeValue]] = []
+        var exclusiveStartKey: [String: DynamoDB.AttributeValue]? = nil
+        repeat {
+            let response = try await db.scan(.init(
+                exclusiveStartKey: exclusiveStartKey,
+                expressionAttributeNames: ["#dt": "date"],
+                expressionAttributeValues: [
+                    ":t": .s("transaction"),
+                    ":u": .s(userId),
+                    ":start": .s(startDate),
+                    ":end": .s(endDate)
+                ],
+                filterExpression: "recordType = :t AND userId = :u AND #dt BETWEEN :start AND :end",
+                tableName: tableName
+            ))
+            items.append(contentsOf: response.items ?? [])
+            exclusiveStartKey = response.lastEvaluatedKey
+        } while exclusiveStartKey != nil
+        return items.compactMap { item in
             guard let payloadString = item["payload"]?.s,
                   let data = payloadString.data(using: .utf8),
                   let transaction = try? JSONDecoder().decode(Transaction.self, from: data)
@@ -52,15 +59,22 @@ public struct DynamoDBTransactionStore: TransactionStoreProtocol {
     }
 
     public func deleteAll(userId: String) async throws {
-        let response = try await db.scan(.init(
-            expressionAttributeValues: [
-                ":t": .s("transaction"),
-                ":u": .s(userId)
-            ],
-            filterExpression: "recordType = :t AND userId = :u",
-            tableName: tableName
-        ))
-        for item in (response.items ?? []) {
+        var items: [[String: DynamoDB.AttributeValue]] = []
+        var exclusiveStartKey: [String: DynamoDB.AttributeValue]? = nil
+        repeat {
+            let response = try await db.scan(.init(
+                exclusiveStartKey: exclusiveStartKey,
+                expressionAttributeValues: [
+                    ":t": .s("transaction"),
+                    ":u": .s(userId)
+                ],
+                filterExpression: "recordType = :t AND userId = :u",
+                tableName: tableName
+            ))
+            items.append(contentsOf: response.items ?? [])
+            exclusiveStartKey = response.lastEvaluatedKey
+        } while exclusiveStartKey != nil
+        for item in items {
             guard let id = item["id"]?.s else { continue }
             _ = try await db.deleteItem(.init(key: ["id": .s(id)], tableName: tableName))
         }
