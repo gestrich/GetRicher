@@ -30,6 +30,11 @@ GETRICHER_API_URL="https://<api-gateway-id>.execute-api.<region>.amazonaws.com/p
 GETRICHER_USERNAME="alice"
 GETRICHER_PASSWORD="secret"
 GETRICHER_ADMIN_PASSWORD="<admin-password>"
+# Optional: lets you hit the Lunch Money API directly to compare against the
+# DynamoDB cache when debugging discrepancies. Pull from AWS Secrets Manager:
+#   aws secretsmanager get-secret-value --secret-id LUNCH_MONEY_TOKEN \
+#     --profile production --region us-east-1 --query SecretString --output text
+LUNCH_MONEY_TOKEN="<lm-api-token>"
 ```
 
 Load it once per shell session:
