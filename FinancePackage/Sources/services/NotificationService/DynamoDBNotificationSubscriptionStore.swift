@@ -31,24 +31,24 @@ public struct DynamoDBNotificationSubscriptionStore: NotificationSubscriptionSto
     }
 
     public func fetch(userId: String) async throws -> [NotificationSubscription] {
-        let response = try await db.scan(.init(
+        let items = try await db.scanAll(
+            tableName: tableName,
+            filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
                 ":t": .s("notificationSubscription"),
                 ":u": .s(userId)
-            ],
-            filterExpression: "recordType = :t AND userId = :u",
-            tableName: tableName
-        ))
-        return decodeItems(response.items)
+            ]
+        )
+        return decodeItems(items)
     }
 
     public func fetchAll() async throws -> [NotificationSubscription] {
-        let response = try await db.scan(.init(
-            expressionAttributeValues: [":t": .s("notificationSubscription")],
+        let items = try await db.scanAll(
+            tableName: tableName,
             filterExpression: "recordType = :t",
-            tableName: tableName
-        ))
-        return decodeItems(response.items)
+            expressionAttributeValues: [":t": .s("notificationSubscription")]
+        )
+        return decodeItems(items)
     }
 
     public func find(userId: String, accountId: Int) async throws -> NotificationSubscription? {
@@ -77,8 +77,8 @@ public struct DynamoDBNotificationSubscriptionStore: NotificationSubscriptionSto
         try await upsert(existing)
     }
 
-    private func decodeItems(_ items: [[String: DynamoDB.AttributeValue]]?) -> [NotificationSubscription] {
-        (items ?? []).compactMap { item in
+    private func decodeItems(_ items: [[String: DynamoDB.AttributeValue]]) -> [NotificationSubscription] {
+        items.compactMap { item in
             guard let payloadString = item["payload"]?.s,
                   let data = payloadString.data(using: .utf8)
             else { return nil }

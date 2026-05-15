@@ -34,24 +34,24 @@ public struct DynamoDBReviewItemStore: ReviewItemStoreProtocol {
     }
 
     public func fetchPending() async throws -> [ReviewItem] {
-        let response = try await db.scan(.init(
+        let items = try await db.scanAll(
+            tableName: tableName,
+            filterExpression: "recordType = :t AND itemStatus = :s",
             expressionAttributeValues: [
                 ":t": .s("reviewItem"),
                 ":s": .s(ReviewItem.Status.pending.rawValue)
-            ],
-            filterExpression: "recordType = :t AND itemStatus = :s",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { parseItem($0) }
+            ]
+        )
+        return items.compactMap { parseItem($0) }
     }
 
     public func fetchAll() async throws -> [ReviewItem] {
-        let response = try await db.scan(.init(
-            expressionAttributeValues: [":t": .s("reviewItem")],
+        let items = try await db.scanAll(
+            tableName: tableName,
             filterExpression: "recordType = :t",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { parseItem($0) }
+            expressionAttributeValues: [":t": .s("reviewItem")]
+        )
+        return items.compactMap { parseItem($0) }
     }
 
     public func resolve(id: String, status: ReviewItem.Status) async throws {

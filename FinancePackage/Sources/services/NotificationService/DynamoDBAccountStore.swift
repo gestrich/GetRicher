@@ -29,15 +29,15 @@ public struct DynamoDBAccountStore: AccountStoreProtocol {
     }
 
     public func fetchAll(userId: String) async throws -> [Account] {
-        let response = try await db.scan(.init(
+        let items = try await db.scanAll(
+            tableName: tableName,
+            filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
                 ":t": .s("account"),
                 ":u": .s(userId)
-            ],
-            filterExpression: "recordType = :t AND userId = :u",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { item in
+            ]
+        )
+        return items.compactMap { item in
             guard let payloadString = item["payload"]?.s,
                   let data = payloadString.data(using: .utf8),
                   let account = try? JSONDecoder().decode(Account.self, from: data)
@@ -47,15 +47,15 @@ public struct DynamoDBAccountStore: AccountStoreProtocol {
     }
 
     public func deleteAll(userId: String) async throws {
-        let response = try await db.scan(.init(
+        let items = try await db.scanAll(
+            tableName: tableName,
+            filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
                 ":t": .s("account"),
                 ":u": .s(userId)
-            ],
-            filterExpression: "recordType = :t AND userId = :u",
-            tableName: tableName
-        ))
-        for item in (response.items ?? []) {
+            ]
+        )
+        for item in items {
             guard let id = item["id"]?.s else { continue }
             _ = try await db.deleteItem(.init(key: ["id": .s(id)], tableName: tableName))
         }

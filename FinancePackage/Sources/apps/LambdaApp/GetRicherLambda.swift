@@ -539,7 +539,12 @@ struct GetRicherLambda {
                         if response.transactions.count < limit { break }
                         offset += limit
                     }
-                    try await transactionStore.store(allTransactions, userId: user.username)
+                    try await transactionStore.replaceWindow(
+                        allTransactions,
+                        userId: user.username,
+                        startDate: startDateString,
+                        endDate: endDateString
+                    )
 
                     context.logger.info("Synced user \(user.username) [token=\(tokenSource)]: \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
                 } catch {
@@ -868,7 +873,12 @@ struct GetRicherLambda {
             if response.transactions.count < limit { break }
             offset += limit
         }
-        try await transactionStore.store(allTransactions, userId: user.username)
+        try await transactionStore.replaceWindow(
+            allTransactions,
+            userId: user.username,
+            startDate: startDateString,
+            endDate: endDateString
+        )
 
         context.logger.info("Refreshed user \(user.username): \(accounts.count) account(s), \(allTransactions.count) transaction(s)")
 

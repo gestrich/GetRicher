@@ -30,12 +30,12 @@ public struct DynamoDBUserStore: UserStoreProtocol {
     }
 
     public func fetchAll() async throws -> [UserAccount] {
-        let response = try await db.scan(.init(
-            expressionAttributeValues: [":t": .s("user")],
+        let items = try await db.scanAll(
+            tableName: tableName,
             filterExpression: "recordType = :t",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { item in
+            expressionAttributeValues: [":t": .s("user")]
+        )
+        return items.compactMap { item in
             guard
                 let id = item["id"]?.s,
                 let passwordHash = item["passwordHash"]?.s,

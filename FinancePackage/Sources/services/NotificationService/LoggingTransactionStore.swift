@@ -7,6 +7,15 @@ public struct LoggingTransactionStore: TransactionStoreProtocol {
         print("[TransactionStore] STUB store \(transactions.count) transaction(s) for userId=\(userId)")
     }
 
+    public func replaceWindow(
+        _ transactions: [Transaction],
+        userId: String,
+        startDate: String,
+        endDate: String
+    ) async throws {
+        print("[TransactionStore] STUB replaceWindow \(transactions.count) txn(s) for userId=\(userId) [\(startDate)..\(endDate)]")
+    }
+
     public func fetch(userId: String, startDate: String, endDate: String) async throws -> [Transaction] {
         print("[TransactionStore] STUB fetch userId=\(userId) start=\(startDate) end=\(endDate) -> []")
         return []

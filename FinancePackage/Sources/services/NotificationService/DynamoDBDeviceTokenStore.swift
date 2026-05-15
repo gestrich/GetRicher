@@ -29,12 +29,12 @@ public struct DynamoDBDeviceTokenStore: DeviceTokenStoreProtocol {
     }
 
     public func fetchAll() async throws -> [DeviceToken] {
-        let response = try await db.scan(.init(
-            expressionAttributeValues: [":t": .s("deviceToken")],
+        let items = try await db.scanAll(
+            tableName: tableName,
             filterExpression: "recordType = :t",
-            tableName: tableName
-        ))
-        return (response.items ?? []).compactMap { item in
+            expressionAttributeValues: [":t": .s("deviceToken")]
+        )
+        return items.compactMap { item in
             guard
                 let id = item["id"]?.s,
                 let env = item["environment"]?.s,
@@ -46,15 +46,15 @@ public struct DynamoDBDeviceTokenStore: DeviceTokenStoreProtocol {
     }
 
     public func deleteAll(userId: String) async throws {
-        let response = try await db.scan(.init(
+        let items = try await db.scanAll(
+            tableName: tableName,
+            filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
                 ":t": .s("deviceToken"),
                 ":u": .s(userId)
-            ],
-            filterExpression: "recordType = :t AND userId = :u",
-            tableName: tableName
-        ))
-        for item in (response.items ?? []) {
+            ]
+        )
+        for item in items {
             guard let id = item["id"]?.s else { continue }
             _ = try await db.deleteItem(.init(key: ["id": .s(id)], tableName: tableName))
         }
