@@ -28,6 +28,22 @@ actor InMemoryTransactionStore: TransactionStoreProtocol {
         storage[userId] = transactions
     }
 
+    func replaceWindow(
+        _ transactions: [Transaction],
+        userId: String,
+        startDate: String,
+        endDate: String
+    ) async throws {
+        var existing = storage[userId] ?? []
+        let batchIds = Set(transactions.map { $0.lunchMoneyId })
+        // Drop rows in the window not present in the new batch, then upsert the batch.
+        existing.removeAll { tx in
+            tx.date >= startDate && tx.date <= endDate && !batchIds.contains(tx.lunchMoneyId)
+        }
+        existing.removeAll { batchIds.contains($0.lunchMoneyId) }
+        storage[userId] = existing + transactions
+    }
+
     func fetch(userId: String, startDate: String, endDate: String) async throws -> [Transaction] {
         (storage[userId] ?? []).filter { $0.date >= startDate && $0.date <= endDate }
     }

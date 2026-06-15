@@ -287,6 +287,111 @@ private func knownMonday() -> Date {
     }
 }
 
+// MARK: - User's hand-calculated paydown (balance-based method)
+//
+// Reproduces Bill's manual calculation for the completed week (cycle ending 6/12/2026)
+// on PNC Core - Spending. His method:
+//   1. Start from the current balance.
+//   2. Subtract charges that POSTED after the cycle period (6/13, 6/14, 6/15) — they
+//      are already baked into the balance but belong to next week.
+//   3. Add pending charges that occurred DURING the cycle (not yet in the balance). [none this week]
+//   4. Subtract special charges covered by transfers from other accounts
+//      (Cloud 9 Aviation, paid from PNC Six Month Reserve).
+//
+//   2417.33 − 36.45 − 10.55 − 60 − 240.79 − 535 − 6.99 − 49.99 − 49.99 − 197.30 − 267.31 = 962.96
+//
+// This is exactly `AccountPaydownReport.netAdjustedSpending`
+// (= adjustedSpending − transferTotal = balance + pending − postPeriod − transfers).
+// The current UI/notification instead surface `netPeriodSpending` (the signed sum of
+// in-period debits and credits), which is the value Bill saw as -1047.80 — wrong because
+// in-period card *payments* drag it negative.
+
+@Suite struct UserHandCalcPaydownTests {
+    private let coreAccountId = 344066
+    private let reserveAccountId = 344059
+
+    // Charges the user subtracted because they posted AFTER the cycle (6/13–6/15).
+    private let postPeriodPostedCharges: [Double] = [36.45, 10.55, 60, 240.79, 535, 6.99, 49.99, 49.99]
+    // Cloud 9 charges inside the cycle, covered by a transfer from Six Month Reserve.
+    private let cloud9InPeriod: [Double] = [267.31, 197.30] // 6/6 and 6/9
+
+    private func coreAccount() -> Account {
+        Account(
+            lunchMoneyId: coreAccountId,
+            name: "PNC Core - Spending",
+            displayName: "PNC PNC Core - Spending",
+            type: "credit",
+            subtype: "credit card",
+            mask: "4705",
+            institutionName: "PNC",
+            status: "active",
+            balance: "2417.33",
+            currency: "usd"
+        )
+    }
+
+    private func cloud9Rule() -> (TransferRule, Vendor) {
+        let vendor = Vendor(name: "Cloud 9 Aviation", filterText: "cloud 9")
+        let rule = TransferRule(
+            name: "Cloud 9 Reserve",
+            vendor: vendor,
+            sourceAccountId: reserveAccountId,
+            targetAccountId: coreAccountId,
+            priority: 1
+        )
+        return (rule, vendor)
+    }
+
+    @Test("balance-based net paydown reproduces Bill's hand calc of 962.96")
+    func reproducesHandCalc() {
+        let account = coreAccount()
+        let (rule, vendor) = cloud9Rule()
+        let reserve = makeAccount(id: reserveAccountId, type: "depository", balance: "77254.73")
+
+        // In-period transactions: just the two Cloud 9 charges (the transfer-covered ones).
+        // (Other in-period spending is already reflected in the balance and not pending,
+        //  so it does not affect the balance-based formula.)
+        var id = 1
+        let periodTx: [Transaction] = cloud9InPeriod.map { amt in
+            defer { id += 1 }
+            return makeTransaction(id: id, payee: "Cloud 9 Aviation", isPending: false, toBase: amt)
+        }
+
+        // Post-period POSTED charges (6/13–6/15) — subtracted from the balance.
+        let postPeriodTx: [Transaction] = postPeriodPostedCharges.map { amt in
+            defer { id += 1 }
+            return makeTransaction(id: id, payee: "Post-period charge", isPending: false, toBase: amt)
+        }
+
+        let calculation = PaydownCalculation.compute(
+            account: account,
+            periodTransactions: periodTx,
+            postPeriodClearedTransactions: postPeriodTx
+        )
+        let breakdown = TransferBreakdown.compute(
+            accountId: coreAccountId,
+            periodTransactions: periodTx,
+            vendors: [vendor],
+            rules: [rule],
+            accounts: [account, reserve]
+        )
+        let report = AccountPaydownReport(
+            account: account,
+            calculation: calculation,
+            transferBreakdown: breakdown,
+            periodStart: "2026-06-06",
+            periodEnd: "2026-06-12"
+        )
+
+        // Transfer covers exactly the two Cloud 9 charges.
+        #expect(report.transferTotal == 464.61)
+        // balance(2417.33) − postPeriod(989.76) + pending(0) = 1427.57
+        #expect((calculation.adjustedSpending - 1427.57).magnitude < 0.005)
+        // Final amount Bill pays on PNC Core.
+        #expect((report.netAdjustedSpending - 962.96).magnitude < 0.005)
+    }
+}
+
 // MARK: - AccountSummary
 
 @Suite struct AccountSummaryTests {
