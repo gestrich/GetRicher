@@ -8,17 +8,18 @@ import SwiftUI
 
 struct CombinedView: View {
     @Environment(TransactionsModel.self) var transactionsModel
+    @Environment(WeeklyPaydownModel.self) var paydownModel
     @Environment(\.modelContext) var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @AppStorage("dashboardSelectedAccountId") private var selectedAccountId: Int = -1
-    @State private var budgetPeriods: [BudgetPeriod] = BudgetPeriod.periods(count: 11, pivotDay: .saturday)
-    @State private var selectedPeriod: BudgetPeriod? = BudgetPeriod.periods(count: 11, pivotDay: .saturday).first
+
     @State private var showSettings = false
     @State private var transactionDaysToShow: Int = 7
 
     private var filteredTransactions: [PersistenceService.Transaction] {
-        guard let period = selectedPeriod else { return [] }
+        guard let period = paydownModel.selectedPeriod else { return [] }
         let start = period.startString
         let end = period.endString
 
@@ -116,16 +117,16 @@ struct CombinedView: View {
 
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 8) {
-                                        ForEach(budgetPeriods) { period in
+                                        ForEach(paydownModel.budgetPeriods) { period in
                                             Button {
-                                                selectedPeriod = period
+                                                paydownModel.selectedPeriod = period
                                             } label: {
                                                 Text(period.displayLabel)
                                                     .font(.subheadline)
                                                     .padding(.horizontal, 12)
                                                     .padding(.vertical, 8)
-                                                    .background(selectedPeriod == period ? Color.accentColor : Color(.systemGray5))
-                                                    .foregroundStyle(selectedPeriod == period ? .white : .primary)
+                                                    .background(paydownModel.selectedPeriod == period ? Color.accentColor : Color(.systemGray5))
+                                                    .foregroundStyle(paydownModel.selectedPeriod == period ? .white : .primary)
                                                     .cornerRadius(8)
                                             }
                                         }
@@ -238,11 +239,16 @@ struct CombinedView: View {
             .refreshable {
                 await syncDataAndWait()
             }
-            .onChange(of: selectedPeriod) { _, _ in
+            .onChange(of: paydownModel.selectedPeriod) { _, _ in
                 syncAllAccounts()
             }
             .onChange(of: selectedAccountId) { _, _ in
                 transactionDaysToShow = 7
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    paydownModel.refreshPeriods()
+                }
             }
         }
     }
@@ -256,7 +262,7 @@ struct CombinedView: View {
     }
 
     private func syncAllAccounts() {
-        guard let period = selectedPeriod else { return }
+        guard let period = paydownModel.selectedPeriod else { return }
         let earliestDate = min(period.start, transactionHistoryStartDate)
         transactionsModel.sync(
             context: modelContext,
@@ -276,7 +282,7 @@ struct CombinedView: View {
     }
 
     private func syncDataAndWait() async {
-        guard let period = selectedPeriod else { return }
+        guard let period = paydownModel.selectedPeriod else { return }
         let earliestDate = min(period.start, transactionHistoryStartDate)
         await transactionsModel.syncAndWait(
             context: modelContext,

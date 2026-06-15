@@ -16,9 +16,28 @@ class WeeklyPaydownModel {
     }
 
     func refreshPeriods() {
+        let oldSelected = selectedPeriod
+        // 1 in-progress (current) period + 10 completed prior weeks
         let periods = BudgetPeriod.periods(count: 11, pivotDay: pivotDay)
         budgetPeriods = periods
-        selectedPeriod = periods.count > 1 ? periods[1] : periods.first
+
+        let inProgressPeriod = periods.first
+
+        guard let oldSelected else {
+            selectedPeriod = inProgressPeriod
+            return
+        }
+
+        if oldSelected == inProgressPeriod {
+            // Selection was tracking the live period — keep tracking it
+            selectedPeriod = inProgressPeriod
+        } else if let match = periods.first(where: { $0 == oldSelected }) {
+            // The previously-selected period still exists — stay on it
+            selectedPeriod = match
+        } else {
+            // Selected period fell out of range
+            selectedPeriod = inProgressPeriod
+        }
     }
 
     func account(id accountId: Int?, from accounts: [Account]) -> Account? {

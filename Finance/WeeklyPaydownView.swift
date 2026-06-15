@@ -10,6 +10,7 @@ struct WeeklyPaydownView: View {
     @Environment(TransactionsModel.self) var transactionsModel
     @Environment(WeeklyPaydownModel.self) var paydownModel
     @Environment(\.modelContext) var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @Query(sort: \PersistenceService.Vendor.name) var vendors: [PersistenceService.Vendor]
@@ -118,6 +119,11 @@ struct WeeklyPaydownView: View {
                     startDate: twoYearsAgo,
                     endDate: Date()
                 )
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    paydownModel.refreshPeriods()
+                }
             }
         }
     }
