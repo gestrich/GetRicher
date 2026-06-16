@@ -190,6 +190,23 @@ private func knownMonday() -> Date {
         #expect(result.adjustedSpending == 800.0)
     }
 
+    @Test("post-period refunds net out (signed, not abs)")
+    func computePostPeriodRefundNetsOut() {
+        // A $100 charge and a $30 refund posted after the period. Signed total is $70, so the
+        // cycle-end balance is balance − 70. Using abs would wrongly subtract 130.
+        let postPeriod = [
+            makeTransaction(id: 1, isPending: false, toBase: 100.0),
+            makeTransaction(id: 2, isPending: false, toBase: -30.0)
+        ]
+        let result = PaydownCalculation.compute(
+            account: makeAccount(balance: "1000.00"),
+            periodTransactions: [],
+            postPeriodClearedTransactions: postPeriod
+        )
+        #expect(result.postPeriodAdjustment == 70.0)
+        #expect(result.adjustedSpending == 930.0)
+    }
+
     @Test("non-pending period transactions are excluded from pending adjustment")
     func computeNonPendingExcluded() {
         let cleared = [makeTransaction(id: 1, isPending: false, toBase: 100.0)]

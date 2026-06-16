@@ -30,11 +30,14 @@ public struct PaydownCalculation: Sendable {
         postPeriodClearedTransactions: [Transaction]
     ) -> PaydownCalculation {
         let balance = account.flatMap { Double($0.balance) } ?? 0.0
+        // Signed toBase (not abs): on a credit account a charge is positive and a refund/
+        // payment is negative. Using signed amounts lets a refund correctly net out — e.g. a
+        // post-period refund adds back to the cycle-end balance instead of being double-counted.
         let pendingTotal = periodTransactions
             .filter { $0.isPending }
-            .reduce(0.0) { $0 + abs($1.toBase) }
+            .reduce(0.0) { $0 + $1.toBase }
         let postPeriodTotal = postPeriodClearedTransactions
-            .reduce(0.0) { $0 + abs($1.toBase) }
+            .reduce(0.0) { $0 + $1.toBase }
         let adjusted = balance + pendingTotal - postPeriodTotal
         let periodSpending = periodTransactions.reduce(0.0) { $0 + $1.toBase }
         return PaydownCalculation(
