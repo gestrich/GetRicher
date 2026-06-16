@@ -12,7 +12,7 @@ public enum CombinedReportPushBuilder {
 
         if reports.count == 1 {
             let r = reports[0]
-            let amount = String(format: "$%.2f", r.netPeriodSpending)
+            let amount = String(format: "$%.2f", r.netAdjustedSpending)
             return NotificationPayload(
                 title: r.account.displayName,
                 body: "Amount to pay: \(amount)",
@@ -24,7 +24,7 @@ public enum CombinedReportPushBuilder {
         }
 
         let parts = reports.map { r -> String in
-            let amount = String(format: "$%.2f", r.netPeriodSpending)
+            let amount = String(format: "$%.2f", r.netAdjustedSpending)
             return "\(r.account.displayName): \(amount)"
         }
         return NotificationPayload(

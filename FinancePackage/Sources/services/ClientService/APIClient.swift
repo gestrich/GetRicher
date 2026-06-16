@@ -198,9 +198,11 @@ extension APIClient {
         public let lunchMoneyId: Int
         public let displayName: String
         public let balance: String
-        public let periodSpending: Double
+        public let pendingAdjustment: Double
+        public let postPeriodAdjustment: Double
         public let transferTotal: Double
-        public let netPeriodSpending: Double
+        /// Balance-based amount to pay (= netAdjustedSpending on the server).
+        public let amountToPay: Double
     }
 
     public struct WeeklyPaydown: Decodable, Sendable {

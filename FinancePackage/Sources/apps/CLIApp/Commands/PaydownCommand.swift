@@ -28,15 +28,18 @@ struct PaydownCommand: AsyncParsableCommand {
         print("Period: \(result.periodStart) → \(result.periodEnd)")
         print(String(repeating: "─", count: 60))
         for account in result.accounts {
-            let net = String(format: "$%.2f", account.netPeriodSpending)
-            let gross = String(format: "$%.2f", account.periodSpending)
-            let transfers = String(format: "$%.2f", account.transferTotal)
             print("\(account.displayName)")
-            print("  Period spending: \(gross)")
-            if account.transferTotal != 0 {
-                print("  Covered by transfers: −\(transfers)")
+            print("  Current balance: \(account.balance)")
+            if account.pendingAdjustment != 0 {
+                print("  Pending this period: +\(String(format: "$%.2f", account.pendingAdjustment))")
             }
-            print("  Net amount to pay: \(net)")
+            if account.postPeriodAdjustment != 0 {
+                print("  Posted after period: −\(String(format: "$%.2f", account.postPeriodAdjustment))")
+            }
+            if account.transferTotal != 0 {
+                print("  Covered by transfers: −\(String(format: "$%.2f", account.transferTotal))")
+            }
+            print("  Amount to pay: \(String(format: "$%.2f", account.amountToPay))")
         }
         print(String(repeating: "─", count: 60))
         print("Notification body: \(result.body)")

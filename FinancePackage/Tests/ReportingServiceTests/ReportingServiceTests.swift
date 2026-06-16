@@ -389,6 +389,11 @@ private func knownMonday() -> Date {
         #expect((calculation.adjustedSpending - 1427.57).magnitude < 0.005)
         // Final amount Bill pays on PNC Core.
         #expect((report.netAdjustedSpending - 962.96).magnitude < 0.005)
+
+        // The shared notification formatter surfaces this same balance-based value
+        // (not the signed period sum) — the canonical "amount to pay".
+        let body = WeeklyPaydownReport.notificationBody(from: [report])
+        #expect(body.contains("$962.96"))
     }
 }
 

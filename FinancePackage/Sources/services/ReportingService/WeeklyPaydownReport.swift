@@ -68,12 +68,14 @@ public struct WeeklyPaydownReport {
         )
     }
 
-    /// Formats the canonical "weekly paydown" value (`netPeriodSpending`) per credit account.
-    /// Used for push notification bodies.
+    /// Formats the canonical "weekly paydown" value (`netAdjustedSpending`) per credit account.
+    /// Used for push notification bodies. This is the balance-based amount to pay
+    /// (balance + in-period pending − post-period posted − transfers), the same value
+    /// the iOS Weekly Paydown view shows as "Amount to Pay".
     public static func notificationBody(from reports: [AccountPaydownReport]) -> String {
         reports
             .map { report in
-                let formatted = String(format: "$%.2f", report.netPeriodSpending)
+                let formatted = String(format: "$%.2f", report.netAdjustedSpending)
                 return "\(report.account.displayName): \(formatted)"
             }
             .joined(separator: " | ")

@@ -17,26 +17,25 @@ class WeeklyPaydownModel {
 
     func refreshPeriods() {
         let oldSelected = selectedPeriod
-        // 1 in-progress (current) period + 10 completed prior weeks
+        // periods[0] = in-progress week, periods[1] = last completed week, then older weeks.
         let periods = BudgetPeriod.periods(count: 11, pivotDay: pivotDay)
         budgetPeriods = periods
 
-        let inProgressPeriod = periods.first
+        // The weekly paydown is what you pay for the week that just ended, so default to the
+        // last completed week — the same period the server notification/report computes.
+        let defaultPeriod = periods.count > 1 ? periods[1] : periods.first
 
         guard let oldSelected else {
-            selectedPeriod = inProgressPeriod
+            selectedPeriod = defaultPeriod
             return
         }
 
-        if oldSelected == inProgressPeriod {
-            // Selection was tracking the live period — keep tracking it
-            selectedPeriod = inProgressPeriod
-        } else if let match = periods.first(where: { $0 == oldSelected }) {
-            // The previously-selected period still exists — stay on it
+        if let match = periods.first(where: { $0 == oldSelected }) {
+            // The previously-selected period still exists — stay on it.
             selectedPeriod = match
         } else {
-            // Selected period fell out of range
-            selectedPeriod = inProgressPeriod
+            // Selection fell out of range — fall back to the last completed week.
+            selectedPeriod = defaultPeriod
         }
     }
 

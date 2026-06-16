@@ -256,7 +256,7 @@ struct WeeklyPaydownView: View {
         let breakdown = report?.transferBreakdown ?? []
         let transferTotal = report?.transferTotal ?? 0
         let hasTransfers = !breakdown.isEmpty
-        let finalAmount = report?.netPeriodSpending ?? 0
+        let finalAmount = report?.netAdjustedSpending ?? 0
 
         // Sub-filter SwiftData transactions for list navigation
         let debitTransactions = periodTransactions.filter { $0.toBase >= 0 }
@@ -335,12 +335,32 @@ struct WeeklyPaydownView: View {
                 .padding(.vertical, 4)
 
             CalculationRow(
-                label: "Period Spending",
-                amount: calc.periodSpending,
-                explanation: "Sum of all charges (posted + pending) in this period, minus any refunds. Matches what's reported in the daily push notification.",
+                label: "Current Balance",
+                amount: calc.currentBalance,
+                explanation: "The card's balance right now.",
                 isTotal: false,
                 sign: ""
             )
+
+            if calc.pendingAdjustment > 0 {
+                CalculationRow(
+                    label: "Pending This Period",
+                    amount: calc.pendingAdjustment,
+                    explanation: "Charges dated in this period that haven't posted yet, so they aren't in the balance. Added because you'll still pay them.",
+                    isTotal: false,
+                    sign: "+"
+                )
+            }
+
+            if calc.postPeriodAdjustment > 0 {
+                CalculationRow(
+                    label: "Posted After Period",
+                    amount: calc.postPeriodAdjustment,
+                    explanation: "Charges that posted after this period ended. They're in the balance but belong to a later week, so they're subtracted.",
+                    isTotal: false,
+                    sign: "−"
+                )
+            }
 
             if hasTransfers {
                 CalculationRow(
@@ -358,9 +378,7 @@ struct WeeklyPaydownView: View {
             CalculationRow(
                 label: "Amount to Pay",
                 amount: finalAmount,
-                explanation: hasTransfers
-                    ? "Period spending net of transfers covered by other accounts."
-                    : "Period spending in this 7-day window.",
+                explanation: "Current balance, plus pending charges this period, minus charges that posted after the period, minus amounts covered by transfers.",
                 isTotal: true,
                 sign: "="
             )

@@ -561,11 +561,17 @@ struct GetRicherLambda {
         return PivotDay.allCases.first { $0.rawValue.lowercased() == raw.lowercased() } ?? .saturday
     }
 
-    /// Computes a user's current-period paydown from DynamoDB. DynamoDB is the single source
-    /// of truth — Lunch Money is only consulted by the hourly sync, never by report/API reads.
-    /// TransferRules + Vendors are pushed by the iOS app and applied here so the notification
-    /// body reflects the same "Amount to Pay" the iOS Weekly Paydown view shows.
-    private static func computeCurrentPeriodFromDynamoDB(
+    /// Computes a user's weekly paydown from DynamoDB for the **last completed week**.
+    /// DynamoDB is the single source of truth — Lunch Money is only consulted by the hourly
+    /// sync, never by report/API reads. TransferRules + Vendors are pushed by the iOS app and
+    /// applied here so the notification body reflects the same "Amount to Pay" the iOS Weekly
+    /// Paydown view shows.
+    ///
+    /// The balance-based amount (`netAdjustedSpending`) subtracts charges that posted *after*
+    /// the period, so we fetch transactions from the period start through **today** — not just
+    /// the period range — and let `WeeklyPaydownReport.compute` split in-period vs post-period
+    /// internally. This is the identical computation the iOS view runs over its local data.
+    private static func computeWeeklyPaydownFromDynamoDB(
         userId: String,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
@@ -574,12 +580,14 @@ struct GetRicherLambda {
         context: LambdaContext
     ) async throws -> (reports: [AccountPaydownReport], notificationBody: String) {
         let pivot = pivotDay()
-        let range = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot)
+        let range = PaydownDateRange.compute(pivotDay: pivot)
+        // End of today, formatted yyyy-MM-dd — captures post-period posted charges.
+        let today = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot).end
         async let accountsFetch = accountStore.fetchAll(userId: userId)
         async let transactionsFetch = transactionStore.fetch(
             userId: userId,
             startDate: range.start,
-            endDate: range.end
+            endDate: today
         )
         async let rulesFetch = transferRuleStore.fetchAll(userId: userId)
         async let vendorsFetch = vendorStore.fetchAll(userId: userId)
@@ -664,7 +672,7 @@ struct GetRicherLambda {
         recordLastSent: Bool,
         context: LambdaContext
     ) async throws {
-        let (allReports, _) = try await computeCurrentPeriodFromDynamoDB(
+        let (allReports, _) = try await computeWeeklyPaydownFromDynamoDB(
             userId: userId,
             accountStore: accountStore,
             transactionStore: transactionStore,
@@ -1507,7 +1515,7 @@ struct GetRicherLambda {
                 body: #"{"error":"Invalid credentials"}"#
             )
         }
-        let (reports, body) = try await computeCurrentPeriodFromDynamoDB(
+        let (reports, body) = try await computeWeeklyPaydownFromDynamoDB(
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
@@ -1519,9 +1527,10 @@ struct GetRicherLambda {
             let lunchMoneyId: Int
             let displayName: String
             let balance: String
-            let periodSpending: Double
+            let pendingAdjustment: Double
+            let postPeriodAdjustment: Double
             let transferTotal: Double
-            let netPeriodSpending: Double
+            let amountToPay: Double
         }
         struct WeeklyPaydownResult: Encodable {
             let periodStart: String
@@ -1534,9 +1543,10 @@ struct GetRicherLambda {
                 lunchMoneyId: r.account.lunchMoneyId,
                 displayName: r.account.displayName,
                 balance: r.account.balance,
-                periodSpending: r.calculation.periodSpending,
+                pendingAdjustment: r.calculation.pendingAdjustment,
+                postPeriodAdjustment: r.calculation.postPeriodAdjustment,
                 transferTotal: r.transferTotal,
-                netPeriodSpending: r.netPeriodSpending
+                amountToPay: r.netAdjustedSpending
             )
         }
         let result = WeeklyPaydownResult(

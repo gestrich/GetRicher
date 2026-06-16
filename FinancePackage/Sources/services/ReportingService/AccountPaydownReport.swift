@@ -28,12 +28,15 @@ public struct AccountPaydownReport: Sendable {
     }
 
     /// Period spending (posted + pending in the period) net of bill mappings.
-    /// This is the canonical "weekly paydown" value for both the iOS view and the push notification.
+    /// Informational only — the signed sum of in-period activity. NOT the amount to pay:
+    /// in-period card payments make it go negative. Kept for diagnostics/charts.
     public var netPeriodSpending: Double {
         calculation.periodSpending - transferTotal
     }
 
-    /// Balance-based pay-down amount net of bill mappings (used for completed periods).
+    /// The canonical "amount to pay" for both the iOS view and the push notification:
+    /// current balance + in-period pending − post-period posted charges − transfers.
+    /// Single source of truth — every surface formats this value.
     public var netAdjustedSpending: Double {
         calculation.adjustedSpending - transferTotal
     }
