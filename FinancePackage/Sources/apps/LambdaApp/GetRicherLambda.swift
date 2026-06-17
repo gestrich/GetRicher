@@ -561,33 +561,33 @@ struct GetRicherLambda {
         return PivotDay.allCases.first { $0.rawValue.lowercased() == raw.lowercased() } ?? .saturday
     }
 
-    /// Computes a user's weekly paydown from DynamoDB for the **last completed week**.
-    /// DynamoDB is the single source of truth — Lunch Money is only consulted by the hourly
-    /// sync, never by report/API reads. TransferRules + Vendors are pushed by the iOS app and
-    /// applied here so the notification body reflects the same "Amount to Pay" the iOS Weekly
-    /// Paydown view shows.
+    /// Computes a user's weekly paydown from DynamoDB for **both** the current in-progress cycle
+    /// and the last completed cycle. DynamoDB is the single source of truth — Lunch Money is only
+    /// consulted by the hourly sync, never by report/API reads. TransferRules + Vendors are pushed
+    /// by the iOS app and applied here so the amounts match the iOS Weekly Paydown view.
     ///
-    /// The balance-based amount (`netAdjustedSpending`) subtracts charges that posted *after*
-    /// the period, so we fetch transactions from the period start through **today** — not just
-    /// the period range — and let `WeeklyPaydownReport.compute` split in-period vs post-period
-    /// internally. This is the identical computation the iOS view runs over its local data.
-    private static func computeWeeklyPaydownFromDynamoDB(
+    /// Both cycles use the same balance-based amount (`netAdjustedSpending`). The last cycle
+    /// subtracts charges that posted *after* it, so we fetch transactions from the last cycle's
+    /// start through **today** — one fetch feeds both `WeeklyPaydownReport.compute` calls, which
+    /// split in-period vs post-period internally. This is the identical computation the iOS view
+    /// runs over its local data.
+    private static func computeCurrentAndLastPaydownFromDynamoDB(
         userId: String,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
         transferRuleStore: any TransferRuleStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         context: LambdaContext
-    ) async throws -> (reports: [AccountPaydownReport], notificationBody: String) {
+    ) async throws -> (current: [AccountPaydownReport], last: [AccountPaydownReport], notificationBody: String) {
         let pivot = pivotDay()
-        let range = PaydownDateRange.compute(pivotDay: pivot)
-        // End of today, formatted yyyy-MM-dd — captures post-period posted charges.
-        let today = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot).end
+        let lastRange = PaydownDateRange.compute(pivotDay: pivot)
+        let currentRange = PaydownDateRange.computeCurrentPeriod(pivotDay: pivot)
+        // Fetch from the last cycle's start through today (currentRange.end) once, for both calcs.
         async let accountsFetch = accountStore.fetchAll(userId: userId)
         async let transactionsFetch = transactionStore.fetch(
             userId: userId,
-            startDate: range.start,
-            endDate: today
+            startDate: lastRange.start,
+            endDate: currentRange.end
         )
         async let rulesFetch = transferRuleStore.fetchAll(userId: userId)
         async let vendorsFetch = vendorStore.fetchAll(userId: userId)
@@ -595,16 +595,23 @@ struct GetRicherLambda {
         let transactions = try await transactionsFetch
         let rules = try await rulesFetch
         let vendors = try await vendorsFetch
-        let reports = WeeklyPaydownReport.compute(
+        let lastReports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
             rules: rules,
             vendors: vendors,
-            dateRange: range
+            dateRange: lastRange
         )
-        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        let currentReports = WeeklyPaydownReport.compute(
+            accounts: accounts,
+            transactions: transactions,
+            rules: rules,
+            vendors: vendors,
+            dateRange: currentRange
+        )
+        let body = WeeklyPaydownReport.notificationBody(from: lastReports)
         let notificationBody = body.isEmpty ? "No credit accounts found" : body
-        return (reports: reports, notificationBody: notificationBody)
+        return (current: currentReports, last: lastReports, notificationBody: notificationBody)
     }
 
     /// Hourly cron tick. Iterates all users with notification subscriptions, evaluates each
@@ -672,7 +679,7 @@ struct GetRicherLambda {
         recordLastSent: Bool,
         context: LambdaContext
     ) async throws {
-        let (allReports, _) = try await computeWeeklyPaydownFromDynamoDB(
+        let (currentAll, lastAll, _) = try await computeCurrentAndLastPaydownFromDynamoDB(
             userId: userId,
             accountStore: accountStore,
             transactionStore: transactionStore,
@@ -681,8 +688,9 @@ struct GetRicherLambda {
             context: context
         )
         let firedAccountIds = Set(fired.map { $0.subscription.accountId })
-        let reports = allReports.filter { firedAccountIds.contains($0.account.lunchMoneyId) }
-        guard let payload = CombinedReportPushBuilder.build(reports: reports) else {
+        let currentReports = currentAll.filter { firedAccountIds.contains($0.account.lunchMoneyId) }
+        let lastReports = lastAll.filter { firedAccountIds.contains($0.account.lunchMoneyId) }
+        guard let payload = CombinedReportPushBuilder.build(current: currentReports, last: lastReports) else {
             context.logger.info("User \(userId): no matching reports for fired subs (accounts may not exist)")
             return
         }
@@ -1515,7 +1523,7 @@ struct GetRicherLambda {
                 body: #"{"error":"Invalid credentials"}"#
             )
         }
-        let (reports, body) = try await computeWeeklyPaydownFromDynamoDB(
+        let (_, reports, body) = try await computeCurrentAndLastPaydownFromDynamoDB(
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
