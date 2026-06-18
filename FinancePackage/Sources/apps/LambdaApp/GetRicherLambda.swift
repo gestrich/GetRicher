@@ -698,8 +698,13 @@ struct GetRicherLambda {
         if userTokens.isEmpty {
             context.logger.info("User \(userId): fired \(fired.count) sub(s) but no device tokens registered")
         } else {
-            try await notificationClient.send(payload, to: userTokens)
-            context.logger.info("Push tick: sent 1 combined push to user \(userId) covering \(fired.count) sub(s), \(userTokens.count) device(s)")
+            let result = try await notificationClient.send(payload, to: userTokens)
+            context.logger.info("Push tick: user \(userId) covering \(fired.count) sub(s) — published to \(result.delivered)/\(result.attempted) device(s)")
+            if result.delivered == 0 {
+                context.logger.error("Push tick: user \(userId) — 0 of \(result.attempted) device(s) reachable; failed tokens: \(result.failedTokens.joined(separator: ", ")). Device likely needs to re-register its push token.")
+            } else if !result.failedTokens.isEmpty {
+                context.logger.warning("Push tick: user \(userId) — \(result.failedTokens.count) stale endpoint(s) skipped: \(result.failedTokens.joined(separator: ", "))")
+            }
         }
         if recordLastSent {
             for f in fired {
@@ -1158,13 +1163,20 @@ struct GetRicherLambda {
             body: "Push notifications are working.",
             data: ["deepLink": "inbox"]
         )
-        try await notificationClient.send(payload, to: tokens)
-        context.logger.info("Test push sent to \(tokens.count) device(s)")
+        let delivery = try await notificationClient.send(payload, to: tokens)
+        context.logger.info("Test push: published to \(delivery.delivered)/\(delivery.attempted) device(s); failed tokens: \(delivery.failedTokens.joined(separator: ", "))")
         struct TestResult: Encodable {
             let status: String
             let notificationsSent: Int
+            let attempted: Int
+            let failedTokens: [String]
         }
-        let result = TestResult(status: "ok", notificationsSent: tokens.count)
+        let result = TestResult(
+            status: delivery.delivered > 0 ? "ok" : "no-reachable-devices",
+            notificationsSent: delivery.delivered,
+            attempted: delivery.attempted,
+            failedTokens: delivery.failedTokens
+        )
         let data = try JSONEncoder().encode(result)
         return APIGatewayResponse(
             statusCode: .ok,

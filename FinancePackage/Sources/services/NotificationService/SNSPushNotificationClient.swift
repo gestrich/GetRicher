@@ -9,15 +9,21 @@ public struct SNSPushNotificationClient: PushNotificationClientProtocol {
         self.platformApplicationArn = platformApplicationArn
     }
 
-    public func send(_ payload: NotificationPayload, to tokens: [DeviceToken]) async throws {
+    @discardableResult
+    public func send(_ payload: NotificationPayload, to tokens: [DeviceToken]) async throws -> PushDeliveryResult {
         let message = try payload.apnsMessageJSON()
+        var delivered = 0
+        var failed: [String] = []
         for token in tokens {
             do {
                 let endpointResponse = try await sns.createPlatformEndpoint(.init(
                     platformApplicationArn: platformApplicationArn,
                     token: token.id
                 ))
-                guard let endpointArn = endpointResponse.endpointArn else { continue }
+                guard let endpointArn = endpointResponse.endpointArn else {
+                    failed.append(String(token.id.suffix(12)))
+                    continue
+                }
                 // SNS disables an endpoint after a delivery failure (e.g. a token left over from
                 // a previous app build). Proactively re-enable so a still-valid device recovers,
                 // and isolate each token in its own do/catch so one disabled endpoint can't abort
@@ -31,9 +37,12 @@ public struct SNSPushNotificationClient: PushNotificationClientProtocol {
                     messageStructure: "json",
                     targetArn: endpointArn
                 ))
+                delivered += 1
             } catch {
-                continue
+                // Skip this token but record it so callers can see and surface the failure.
+                failed.append(String(token.id.suffix(12)))
             }
         }
+        return PushDeliveryResult(attempted: tokens.count, delivered: delivered, failedTokens: failed)
     }
 }
