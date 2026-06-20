@@ -68,12 +68,17 @@ export class LambdaConstruct extends Construct {
       retryAttempts: 1
     });
 
-    // Grant SNS permissions for mobile push notifications
+    // Grant SNS permissions for mobile push notifications.
+    // SetEndpointAttributes is required to re-enable an endpoint SNS disabled after a delivery
+    // failure (e.g. a token that was stale until the app reopened); without it, publish keeps
+    // hitting the disabled endpoint and no push is delivered.
     this.function.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         'sns:CreatePlatformEndpoint',
         'sns:Publish',
         'sns:ListEndpointsByPlatformApplication',
+        'sns:GetEndpointAttributes',
+        'sns:SetEndpointAttributes',
       ],
       resources: ['*'],
     }));
