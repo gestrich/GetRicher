@@ -372,7 +372,7 @@ struct GetRicherLambda {
                 body: #"{"error":"Invalid credentials"}"#
             )
         }
-        let token = DeviceToken(tokenString: request.token, environment: request.environment, userId: request.username)
+        let token = DeviceToken(tokenString: request.token, userId: request.username)
         try await tokenStore.store(token)
         context.logger.info("Stored device token: \(token.id) for user: \(request.username)")
         return APIGatewayResponse(
@@ -1802,7 +1802,9 @@ private struct UserRegistrationRequest: Decodable {
 
 private struct DeviceTokenRequest: Decodable {
     let token: String
-    let environment: String
+    // `environment` is accepted for backward compatibility with older app builds but ignored —
+    // push routing is determined solely by the configured SNS_PLATFORM_ARN, not per-token.
+    let environment: String?
     let username: String
     let password: String
 }

@@ -67,14 +67,12 @@ final class NotificationsModel {
 
         struct DeviceTokenRequest: Encodable {
             let token: String
-            let environment: String
             let username: String
             let password: String
         }
 
         let requestBody = DeviceTokenRequest(
             token: token,
-            environment: "sandbox",
             username: userAccountModel.username,
             password: userAccountModel.password
         )
