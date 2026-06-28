@@ -12,7 +12,7 @@ struct VendorListView: View {
     @State private var isAddingVendor = false
 
     private var filteredVendors: [PersistenceService.Vendor] {
-        let live = vendors.filter { !$0.isDeleted }
+        let live = vendors.filter { !$0.isTombstoned }
         guard let accountId else { return live }
         return live.filter { $0.accountId == accountId || $0.accountId == nil }
     }
@@ -80,7 +80,7 @@ struct VendorListView: View {
         for index in offsets {
             // Soft-delete (tombstone) so the deletion propagates via last-write-wins merge.
             let vendor = filtered[index]
-            vendor.isDeleted = true
+            vendor.isTombstoned = true
             vendor.updatedAt = Date()
         }
         try? modelContext.save()

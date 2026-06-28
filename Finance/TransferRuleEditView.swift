@@ -81,7 +81,7 @@ struct TransferRuleEditView: View {
         Section("Vendor") {
             Picker("Vendor", selection: $selectedVendorId) {
                 Text("Default (all unmatched)").tag(nil as UUID?)
-                ForEach(vendors.filter { !$0.isDeleted }) { vendor in
+                ForEach(vendors.filter { !$0.isTombstoned }) { vendor in
                     Text(vendor.name).tag(vendor.id as UUID?)
                 }
             }

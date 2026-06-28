@@ -30,8 +30,8 @@ struct WeeklyPaydownView: View {
         let domainAccounts = accounts.map { $0.toDomain() }
         // Exclude tombstoned rules/vendors from the calc (the shared calc also guards, but keep
         // the domain inputs clean).
-        let domainVendors = vendors.filter { !$0.isDeleted }.map { $0.toDomain() }
-        let domainRules = transferRules.filter { !$0.isDeleted }.map { $0.toDomain() }
+        let domainVendors = vendors.filter { !$0.isTombstoned }.map { $0.toDomain() }
+        let domainRules = transferRules.filter { !$0.isTombstoned }.map { $0.toDomain() }
 
         // Period date range (shared by domain and SwiftData transaction filters)
         let range = paydownModel.dateRange
@@ -126,9 +126,9 @@ struct WeeklyPaydownView: View {
     // TEMP diagnostics for sync debugging — shows local rule state + last sync error.
     private var syncDiagnostics: some View {
         let total = transferRules.count
-        let deleted = transferRules.filter { $0.isDeleted }.count
+        let deleted = transferRules.filter { $0.isTombstoned }.count
         let testRules = transferRules.filter { $0.name.localizedCaseInsensitiveContains("test") }
-        let testDesc = testRules.map { "\($0.name)[del=\($0.isDeleted),upd=\(Int($0.updatedAt.timeIntervalSinceReferenceDate))]" }.joined(separator: ", ")
+        let testDesc = testRules.map { "\($0.name)[del=\($0.isTombstoned),upd=\(Int($0.updatedAt.timeIntervalSinceReferenceDate))]" }.joined(separator: ", ")
         return VStack(alignment: .leading, spacing: 2) {
             Text("SYNC DIAG").font(.caption2.bold()).foregroundStyle(.secondary)
             Text("rules: \(total) total, \(deleted) deleted")

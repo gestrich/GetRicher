@@ -24,7 +24,7 @@ public struct RuleVendorSyncService: Sendable {
                 local.accountId = v.accountId
                 local.createdAt = v.createdAt
                 local.updatedAt = v.updatedAt
-                local.isDeleted = v.isDeleted
+                local.isTombstoned = v.isDeleted
             } else {
                 let local = PersistenceService.Vendor(
                     id: v.id,
@@ -33,7 +33,7 @@ public struct RuleVendorSyncService: Sendable {
                     accountId: v.accountId,
                     createdAt: v.createdAt,
                     updatedAt: v.updatedAt,
-                    isDeleted: v.isDeleted
+                    isTombstoned: v.isDeleted
                 )
                 context.insert(local)
                 vendorsById[v.id] = local
@@ -54,7 +54,7 @@ public struct RuleVendorSyncService: Sendable {
                 local.kindRaw = r.kind.rawValue
                 local.createdAt = r.createdAt
                 local.updatedAt = r.updatedAt
-                local.isDeleted = r.isDeleted
+                local.isTombstoned = r.isDeleted
             } else {
                 let local = PersistenceService.TransferRule(
                     id: r.id,
@@ -66,7 +66,7 @@ public struct RuleVendorSyncService: Sendable {
                     kindRaw: r.kind.rawValue,
                     createdAt: r.createdAt,
                     updatedAt: r.updatedAt,
-                    isDeleted: r.isDeleted
+                    isTombstoned: r.isDeleted
                 )
                 context.insert(local)
                 rulesById[r.id] = local

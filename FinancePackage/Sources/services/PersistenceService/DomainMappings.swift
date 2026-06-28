@@ -186,7 +186,7 @@ extension Vendor {
             accountId: accountId,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            isDeleted: isDeleted
+            isDeleted: isTombstoned
         )
     }
 
@@ -199,7 +199,7 @@ extension Vendor {
             accountId: vendor.accountId,
             createdAt: vendor.createdAt,
             updatedAt: vendor.updatedAt,
-            isDeleted: vendor.isDeleted
+            isTombstoned: vendor.isDeleted
         )
     }
 }
@@ -217,7 +217,7 @@ extension TransferRule {
             kind: FinanceCoreSDK.RuleKind(rawValue: kindRaw) ?? .transfer,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            isDeleted: isDeleted
+            isDeleted: isTombstoned
         )
     }
 
@@ -232,7 +232,7 @@ extension TransferRule {
             kindRaw: rule.kind.rawValue,
             createdAt: rule.createdAt,
             updatedAt: rule.updatedAt,
-            isDeleted: rule.isDeleted
+            isTombstoned: rule.isDeleted
         )
     }
 }

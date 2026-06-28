@@ -14,8 +14,9 @@ public final class TransferRule {
     public var createdAt: Date
     /// Last modification time for last-write-wins sync.
     public var updatedAt: Date = Date()
-    /// Soft-delete tombstone so deletions propagate to the server/other devices.
-    public var isDeleted: Bool = false
+    /// Soft-delete tombstone so deletions propagate. NOTE: must NOT be named `isDeleted` —
+    /// that collides with SwiftData/Core Data's reserved `isDeleted` and silently won't persist.
+    public var isTombstoned: Bool = false
 
     public init(
         id: UUID = UUID(),
@@ -27,7 +28,7 @@ public final class TransferRule {
         kindRaw: String = "transfer",
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        isDeleted: Bool = false
+        isTombstoned: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -38,6 +39,6 @@ public final class TransferRule {
         self.kindRaw = kindRaw
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.isDeleted = isDeleted
+        self.isTombstoned = isTombstoned
     }
 }
