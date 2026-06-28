@@ -94,6 +94,7 @@ struct VendorEditView: View {
             vendor.filterText = trimmedFilter
             vendor.category = category
             vendor.accountId = accountId
+            vendor.updatedAt = Date() // bump for last-write-wins sync
         } else {
             let newVendor = PersistenceService.Vendor(
                 name: trimmedName,

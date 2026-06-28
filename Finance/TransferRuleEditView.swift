@@ -81,7 +81,7 @@ struct TransferRuleEditView: View {
         Section("Vendor") {
             Picker("Vendor", selection: $selectedVendorId) {
                 Text("Default (all unmatched)").tag(nil as UUID?)
-                ForEach(vendors) { vendor in
+                ForEach(vendors.filter { !$0.isDeleted }) { vendor in
                     Text(vendor.name).tag(vendor.id as UUID?)
                 }
             }
@@ -126,6 +126,7 @@ struct TransferRuleEditView: View {
             rule.sourceAccountId = sourceId
             rule.priority = priority
             rule.kindRaw = kindRaw
+            rule.updatedAt = Date() // bump for last-write-wins sync
         } else {
             let newRule = PersistenceService.TransferRule(
                 name: trimmedName,

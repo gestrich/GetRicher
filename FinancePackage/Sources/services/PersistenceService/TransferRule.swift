@@ -12,6 +12,10 @@ public final class TransferRule {
     /// Raw `RuleKind` ("transfer" | "payment"); default enables lightweight SwiftData migration.
     public var kindRaw: String = "transfer"
     public var createdAt: Date
+    /// Last modification time for last-write-wins sync.
+    public var updatedAt: Date = Date()
+    /// Soft-delete tombstone so deletions propagate to the server/other devices.
+    public var isDeleted: Bool = false
 
     public init(
         id: UUID = UUID(),
@@ -21,7 +25,9 @@ public final class TransferRule {
         targetAccountId: Int,
         priority: Int = 0,
         kindRaw: String = "transfer",
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        isDeleted: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -31,5 +37,7 @@ public final class TransferRule {
         self.priority = priority
         self.kindRaw = kindRaw
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isDeleted = isDeleted
     }
 }

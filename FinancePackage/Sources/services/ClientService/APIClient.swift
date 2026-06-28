@@ -224,12 +224,15 @@ extension APIClient {
         public let accounts: [WeeklyPaydownAccount]
     }
 
-    /// Replaces the user's full set of TransferRules on the server. Called by the iOS app
-    /// whenever rules change locally so the daily push notification can apply them.
-    public func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws {
+    /// Sends the client's TransferRules to the server, which last-write-wins merges them with what
+    /// it has and returns the merged set (including tombstones). The caller adopts the result so
+    /// the two stores converge instead of one clobbering the other.
+    @discardableResult
+    public func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws -> [TransferRule] {
         struct Body: Encodable { let username: String; let password: String; let rules: [TransferRule] }
         let body = try JSONEncoder().encode(Body(username: username, password: password, rules: rules))
-        _ = try await put("/api/transfer-rules", body: body, headers: ["Content-Type": "application/json"])
+        let data = try await put("/api/transfer-rules", body: body, headers: ["Content-Type": "application/json"])
+        return try decodeOrThrow([TransferRule].self, from: data)
     }
 
     public func fetchTransferRules(username: String, password: String) async throws -> [TransferRule] {
@@ -243,10 +246,14 @@ extension APIClient {
         return try decodeOrThrow([TransferRule].self, from: data)
     }
 
-    public func putVendors(username: String, password: String, vendors: [Vendor]) async throws {
+    /// Sends the client's Vendors to the server, which last-write-wins merges and returns the
+    /// merged set (including tombstones). See `putTransferRules`.
+    @discardableResult
+    public func putVendors(username: String, password: String, vendors: [Vendor]) async throws -> [Vendor] {
         struct Body: Encodable { let username: String; let password: String; let vendors: [Vendor] }
         let body = try JSONEncoder().encode(Body(username: username, password: password, vendors: vendors))
-        _ = try await put("/api/vendors", body: body, headers: ["Content-Type": "application/json"])
+        let data = try await put("/api/vendors", body: body, headers: ["Content-Type": "application/json"])
+        return try decodeOrThrow([Vendor].self, from: data)
     }
 
     public func fetchVendors(username: String, password: String) async throws -> [Vendor] {

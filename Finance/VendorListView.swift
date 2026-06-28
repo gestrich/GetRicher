@@ -12,8 +12,9 @@ struct VendorListView: View {
     @State private var isAddingVendor = false
 
     private var filteredVendors: [PersistenceService.Vendor] {
-        guard let accountId else { return vendors }
-        return vendors.filter { $0.accountId == accountId || $0.accountId == nil }
+        let live = vendors.filter { !$0.isDeleted }
+        guard let accountId else { return live }
+        return live.filter { $0.accountId == accountId || $0.accountId == nil }
     }
 
     var body: some View {
@@ -77,7 +78,11 @@ struct VendorListView: View {
     private func deleteVendors(at offsets: IndexSet) {
         let filtered = filteredVendors
         for index in offsets {
-            modelContext.delete(filtered[index])
+            // Soft-delete (tombstone) so the deletion propagates via last-write-wins merge.
+            let vendor = filtered[index]
+            vendor.isDeleted = true
+            vendor.updatedAt = Date()
         }
+        try? modelContext.save()
     }
 }

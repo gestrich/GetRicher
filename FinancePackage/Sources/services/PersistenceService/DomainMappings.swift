@@ -184,7 +184,9 @@ extension Vendor {
             name: name,
             filterText: filterText,
             accountId: accountId,
-            createdAt: createdAt
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            isDeleted: isDeleted
         )
     }
 
@@ -195,7 +197,9 @@ extension Vendor {
             filterText: vendor.filterText,
             imageData: nil,
             accountId: vendor.accountId,
-            createdAt: vendor.createdAt
+            createdAt: vendor.createdAt,
+            updatedAt: vendor.updatedAt,
+            isDeleted: vendor.isDeleted
         )
     }
 }
@@ -211,7 +215,9 @@ extension TransferRule {
             targetAccountId: targetAccountId,
             priority: priority,
             kind: FinanceCoreSDK.RuleKind(rawValue: kindRaw) ?? .transfer,
-            createdAt: createdAt
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            isDeleted: isDeleted
         )
     }
 
@@ -224,7 +230,9 @@ extension TransferRule {
             targetAccountId: rule.targetAccountId,
             priority: rule.priority,
             kindRaw: rule.kind.rawValue,
-            createdAt: rule.createdAt
+            createdAt: rule.createdAt,
+            updatedAt: rule.updatedAt,
+            isDeleted: rule.isDeleted
         )
     }
 }

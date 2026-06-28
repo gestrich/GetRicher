@@ -77,11 +77,23 @@ struct TransferRulesCommand: AsyncParsableCommand {
             try await Task { @MainActor in
                 let client = APIClient(baseURL: baseURL, serviceName: "CLI")
                 let rules = try await client.fetchTransferRules(username: username, password: password)
-                let remaining = rules.filter { $0.id.uuidString.caseInsensitiveCompare(ruleId) != .orderedSame }
-                guard remaining.count != rules.count else {
+                guard let target = rules.first(where: { $0.id.uuidString.caseInsensitiveCompare(ruleId) == .orderedSame }) else {
                     throw ValidationError("No rule with id \(ruleId)")
                 }
-                try await client.putTransferRules(username: username, password: password, rules: remaining)
+                // Soft-delete: send a tombstone (bumped updatedAt) so the deletion propagates via merge.
+                let tombstone = TransferRule(
+                    id: target.id,
+                    name: target.name,
+                    vendor: target.vendor,
+                    sourceAccountId: target.sourceAccountId,
+                    targetAccountId: target.targetAccountId,
+                    priority: target.priority,
+                    kind: target.kind,
+                    createdAt: target.createdAt,
+                    updatedAt: Date(),
+                    isDeleted: true
+                )
+                _ = try await client.putTransferRules(username: username, password: password, rules: [tombstone])
             }.value
             print("Deleted rule \(ruleId).")
         }

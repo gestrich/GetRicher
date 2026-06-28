@@ -33,9 +33,9 @@ struct DemoFinanceSyncClient: FinanceSyncClientProtocol {
 
     func triggerRefresh(username: String, password: String) async throws {}
 
-    func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws {}
+    func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws -> [TransferRule] { rules }
 
-    func putVendors(username: String, password: String, vendors: [Vendor]) async throws {}
+    func putVendors(username: String, password: String, vendors: [Vendor]) async throws -> [Vendor] { vendors }
 
     private static var cachedTransactions: [Transaction]?
 

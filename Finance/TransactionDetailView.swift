@@ -11,7 +11,7 @@ struct TransactionDetailView: View {
 
     private var matchedVendor: PersistenceService.Vendor? {
         vendors.first { vendor in
-            transaction.payee.localizedCaseInsensitiveContains(vendor.filterText)
+            !vendor.isDeleted && transaction.payee.localizedCaseInsensitiveContains(vendor.filterText)
         }
     }
 

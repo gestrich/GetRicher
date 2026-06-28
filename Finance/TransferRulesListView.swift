@@ -12,7 +12,7 @@ struct TransferRulesListView: View {
     @State private var isAddingRule = false
 
     private var rules: [PersistenceService.TransferRule] {
-        allRules.filter { $0.targetAccountId == targetAccountId }
+        allRules.filter { $0.targetAccountId == targetAccountId && !$0.isDeleted }
     }
 
     var body: some View {
@@ -75,7 +75,12 @@ struct TransferRulesListView: View {
     private func deleteRules(at offsets: IndexSet) {
         let currentRules = rules
         for index in offsets {
-            modelContext.delete(currentRules[index])
+            // Soft-delete (tombstone) so the deletion propagates to the server via last-write-wins
+            // merge on the next sync, instead of reappearing.
+            let rule = currentRules[index]
+            rule.isDeleted = true
+            rule.updatedAt = Date()
         }
+        try? modelContext.save()
     }
 }

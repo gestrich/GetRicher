@@ -28,8 +28,10 @@ struct WeeklyPaydownView: View {
         // Domain types for model computation
         let domainTransactions = transactions.map { $0.toDomain() }
         let domainAccounts = accounts.map { $0.toDomain() }
-        let domainVendors = vendors.map { $0.toDomain() }
-        let domainRules = transferRules.map { $0.toDomain() }
+        // Exclude tombstoned rules/vendors from the calc (the shared calc also guards, but keep
+        // the domain inputs clean).
+        let domainVendors = vendors.filter { !$0.isDeleted }.map { $0.toDomain() }
+        let domainRules = transferRules.filter { !$0.isDeleted }.map { $0.toDomain() }
 
         // Period date range (shared by domain and SwiftData transaction filters)
         let range = paydownModel.dateRange

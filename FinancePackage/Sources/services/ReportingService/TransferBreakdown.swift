@@ -45,7 +45,8 @@ public struct TransferBreakdown: Identifiable, Sendable {
         rules: [TransferRule],
         accounts: [Account]
     ) -> [TransferBreakdown] {
-        let accountRules = rules.filter { $0.targetAccountId == accountId }
+        // Tombstoned (soft-deleted) rules never participate in allocation.
+        let accountRules = rules.filter { $0.targetAccountId == accountId && !$0.isDeleted }
         let paymentRules = accountRules.filter { $0.kind == .payment }
         let transferRules = accountRules
             .filter { $0.kind == .transfer && $0.vendor != nil }

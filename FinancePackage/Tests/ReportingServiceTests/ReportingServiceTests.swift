@@ -9,6 +9,63 @@ private extension Double {
     func isApprox(_ other: Double, tol: Double = 0.005) -> Bool { (self - other).magnitude < tol }
 }
 
+// MARK: - LWW merge
+
+@Suite struct LWWMergeTests {
+    private func rule(_ idSuffix: Int, name: String, updated: TimeInterval, deleted: Bool = false) -> TransferRule {
+        TransferRule(
+            id: stableId(idSuffix),
+            name: name,
+            targetAccountId: 1,
+            updatedAt: Date(timeIntervalSinceReferenceDate: updated),
+            isDeleted: deleted
+        )
+    }
+    private func stableId(_ n: Int) -> UUID {
+        UUID(uuidString: "00000000-0000-0000-0000-\(String(format: "%012d", n))")!
+    }
+
+    @Test("union of disjoint ids — absence is not deletion")
+    func unionDisjoint() {
+        let a = [rule(1, name: "A", updated: 100)]
+        let b = [rule(2, name: "B", updated: 100)]
+        let merged = lwwMerge(a, b)
+        #expect(Set(merged.map { $0.id }) == Set([stableId(1), stableId(2)]))
+    }
+
+    @Test("newer updatedAt wins regardless of argument order")
+    func newerWins() {
+        let older = rule(1, name: "old", updated: 100)
+        let newer = rule(1, name: "new", updated: 200)
+        #expect(lwwMerge([older], [newer]).first?.name == "new")
+        #expect(lwwMerge([newer], [older]).first?.name == "new")
+    }
+
+    @Test("a newer tombstone propagates the deletion")
+    func tombstoneWins() {
+        let live = rule(1, name: "live", updated: 100)
+        let dead = rule(1, name: "live", updated: 200, deleted: true)
+        let merged = lwwMerge([live], [dead])
+        #expect(merged.count == 1)
+        #expect(merged.first?.isDeleted == true)
+    }
+
+    @Test("an older tombstone does not resurrect-block a newer live edit")
+    func newerLiveBeatsOlderTombstone() {
+        let dead = rule(1, name: "x", updated: 100, deleted: true)
+        let revived = rule(1, name: "x", updated: 200, deleted: false)
+        #expect(lwwMerge([dead], [revived]).first?.isDeleted == false)
+    }
+
+    @Test("equal timestamps: a delete wins the tie deterministically")
+    func tieDeletePrefers() {
+        let live = rule(1, name: "x", updated: 100, deleted: false)
+        let dead = rule(1, name: "x", updated: 100, deleted: true)
+        #expect(lwwMerge([live], [dead]).first?.isDeleted == true)
+        #expect(lwwMerge([dead], [live]).first?.isDeleted == true)
+    }
+}
+
 private func makeAccount(id: Int = 1, type: String = "credit", balance: String = "1000.00") -> Account {
     Account(
         lunchMoneyId: id,

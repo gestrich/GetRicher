@@ -1449,12 +1449,17 @@ struct GetRicherLambda {
         guard let user = try await authenticatedUser(username: request.username, password: request.password, userStore: userStore) else {
             return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
         }
-        try await transferRuleStore.replaceAll(request.rules, userId: user.username)
-        context.logger.info("Stored \(request.rules.count) transfer rule(s) for user \(user.username)")
+        // Last-write-wins merge against what's stored, so a client's push never clobbers a newer
+        // server-side change and deletions (tombstones) propagate. Persist + return the merged set.
+        let existing = try await transferRuleStore.fetchAll(userId: user.username)
+        let merged = lwwMerge(existing, request.rules)
+        try await transferRuleStore.replaceAll(merged, userId: user.username)
+        context.logger.info("Merged transfer rules for user \(user.username): \(existing.count) existing + \(request.rules.count) incoming → \(merged.count) stored")
+        let data = try JSONEncoder().encode(merged)
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
-            body: #"{"status":"ok"}"#
+            body: String(data: data, encoding: .utf8) ?? "[]"
         )
     }
 
@@ -1497,12 +1502,16 @@ struct GetRicherLambda {
         guard let user = try await authenticatedUser(username: request.username, password: request.password, userStore: userStore) else {
             return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
         }
-        try await vendorStore.replaceAll(request.vendors, userId: user.username)
-        context.logger.info("Stored \(request.vendors.count) vendor(s) for user \(user.username)")
+        // Last-write-wins merge (see transfer-rules) — persist + return the merged set.
+        let existing = try await vendorStore.fetchAll(userId: user.username)
+        let merged = lwwMerge(existing, request.vendors)
+        try await vendorStore.replaceAll(merged, userId: user.username)
+        context.logger.info("Merged vendors for user \(user.username): \(existing.count) existing + \(request.vendors.count) incoming → \(merged.count) stored")
+        let data = try JSONEncoder().encode(merged)
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
-            body: #"{"status":"ok"}"#
+            body: String(data: data, encoding: .utf8) ?? "[]"
         )
     }
 

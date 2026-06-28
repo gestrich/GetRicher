@@ -49,23 +49,23 @@ public struct SyncCoordinator: Sendable {
         )
         let transactionResult = try transactionSync.sync(transactions: allTransactions, context: context)
 
-        // Push local TransferRules + Vendors so the server can apply bill-mapping subtractions
-        // in the same way the iOS Weekly Paydown view does.
-        try await pushRulesAndVendors(context: context, username: username, password: password)
+        // Last-write-wins merge of TransferRules + Vendors with the server, then adopt the merged
+        // result locally. Sends local state (incl. tombstones), the server merges and returns the
+        // union, and we reconcile it back — so neither side clobbers the other.
+        try await mergeRulesAndVendors(context: context, username: username, password: password)
 
         return (accounts: accountResult, transactions: transactionResult)
     }
 
     @MainActor
-    public func pushRulesAndVendors(context: ModelContext, username: String, password: String) async throws {
-        let vendorDescriptor = FetchDescriptor<PersistenceService.Vendor>()
-        let ruleDescriptor = FetchDescriptor<PersistenceService.TransferRule>()
-        let localVendors = (try? context.fetch(vendorDescriptor)) ?? []
-        let localRules = (try? context.fetch(ruleDescriptor)) ?? []
+    public func mergeRulesAndVendors(context: ModelContext, username: String, password: String) async throws {
+        let localVendors = (try? context.fetch(FetchDescriptor<PersistenceService.Vendor>())) ?? []
+        let localRules = (try? context.fetch(FetchDescriptor<PersistenceService.TransferRule>())) ?? []
         let domainVendors = localVendors.map { $0.toDomain() }
         let domainRules = localRules.map { $0.toDomain() }
-        try await syncClient.putVendors(username: username, password: password, vendors: domainVendors)
-        try await syncClient.putTransferRules(username: username, password: password, rules: domainRules)
+        let mergedVendors = try await syncClient.putVendors(username: username, password: password, vendors: domainVendors)
+        let mergedRules = try await syncClient.putTransferRules(username: username, password: password, rules: domainRules)
+        try RuleVendorSyncService().apply(vendors: mergedVendors, rules: mergedRules, context: context)
     }
 }
 
