@@ -9,6 +9,8 @@ public final class TransferRule {
     public var sourceAccountId: Int?
     public var targetAccountId: Int
     public var priority: Int
+    /// Raw `RuleKind` ("transfer" | "payment"); default enables lightweight SwiftData migration.
+    public var kindRaw: String = "transfer"
     public var createdAt: Date
 
     public init(
@@ -18,6 +20,7 @@ public final class TransferRule {
         sourceAccountId: Int? = nil,
         targetAccountId: Int,
         priority: Int = 0,
+        kindRaw: String = "transfer",
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -26,6 +29,7 @@ public final class TransferRule {
         self.sourceAccountId = sourceAccountId
         self.targetAccountId = targetAccountId
         self.priority = priority
+        self.kindRaw = kindRaw
         self.createdAt = createdAt
     }
 }

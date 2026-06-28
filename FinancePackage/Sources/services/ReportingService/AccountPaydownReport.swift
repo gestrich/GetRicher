@@ -1,43 +1,30 @@
 import FinanceCoreSDK
 import Foundation
 
+/// A card's paydown for one period, expressed as per-source buckets: how much to transfer from
+/// each funding account to cover that account's share of the period's charges. Card payments are
+/// already excluded (they're settlements, not spending), so nothing here can be inflated by a
+/// payment posting.
 public struct AccountPaydownReport: Sendable {
     public let account: Account
-    public let calculation: PaydownCalculation
-    public let transferBreakdown: [TransferBreakdown]
+    public let buckets: [TransferBreakdown]
     public let periodStart: String
     public let periodEnd: String
 
     public init(
         account: Account,
-        calculation: PaydownCalculation,
-        transferBreakdown: [TransferBreakdown] = [],
+        buckets: [TransferBreakdown],
         periodStart: String,
         periodEnd: String
     ) {
         self.account = account
-        self.calculation = calculation
-        self.transferBreakdown = transferBreakdown
+        self.buckets = buckets
         self.periodStart = periodStart
         self.periodEnd = periodEnd
     }
 
-    /// Sum of transfer-rule matched amounts (bills covered by other accounts).
-    public var transferTotal: Double {
-        transferBreakdown.reduce(0.0) { $0 + $1.amount }
-    }
-
-    /// Period spending (posted + pending in the period) net of bill mappings.
-    /// Informational only — the signed sum of in-period activity. NOT the amount to pay:
-    /// in-period card payments make it go negative. Kept for diagnostics/charts.
-    public var netPeriodSpending: Double {
-        calculation.periodSpending - transferTotal
-    }
-
-    /// The canonical "amount to pay" for both the iOS view and the push notification:
-    /// current balance + in-period pending − post-period posted charges − transfers.
-    /// Single source of truth — every surface formats this value.
-    public var netAdjustedSpending: Double {
-        calculation.adjustedSpending - transferTotal
+    /// Total to pay across all source buckets for the period.
+    public var amountToPay: Double {
+        buckets.reduce(0.0) { $0 + $1.amount }
     }
 }

@@ -210,6 +210,7 @@ extension TransferRule {
             sourceAccountId: sourceAccountId,
             targetAccountId: targetAccountId,
             priority: priority,
+            kind: FinanceCoreSDK.RuleKind(rawValue: kindRaw) ?? .transfer,
             createdAt: createdAt
         )
     }
@@ -222,6 +223,7 @@ extension TransferRule {
             sourceAccountId: rule.sourceAccountId,
             targetAccountId: rule.targetAccountId,
             priority: rule.priority,
+            kindRaw: rule.kind.rawValue,
             createdAt: rule.createdAt
         )
     }

@@ -6,7 +6,8 @@ import Foundation
 
 @Suite("CombinedReportPushBuilder")
 struct CombinedReportPushBuilderTests {
-    private static func report(id: Int, displayName: String, netSpending: Double) -> AccountPaydownReport {
+    /// A report with a single "Checking" source bucket holding `amount`.
+    private static func report(id: Int, displayName: String, amount: Double) -> AccountPaydownReport {
         let account = Account(
             lunchMoneyId: id,
             name: displayName,
@@ -19,18 +20,15 @@ struct CombinedReportPushBuilderTests {
             balance: "0.00",
             currency: "usd"
         )
-        // Build a calculation whose periodSpending equals netSpending (no transfers).
-        let calculation = PaydownCalculation(
-            currentBalance: 0,
-            pendingAdjustment: 0,
-            postPeriodAdjustment: 0,
-            adjustedSpending: netSpending,
-            periodSpending: netSpending
-        )
         return AccountPaydownReport(
             account: account,
-            calculation: calculation,
-            transferBreakdown: [],
+            buckets: [TransferBreakdown(
+                sourceAccountId: 9,
+                sourceAccountName: "Checking",
+                ruleName: "Default",
+                amount: amount,
+                transactionCount: 1
+            )],
             periodStart: "2026-05-01",
             periodEnd: "2026-05-12"
         )
@@ -41,43 +39,42 @@ struct CombinedReportPushBuilderTests {
         #expect(CombinedReportPushBuilder.build(current: [], last: []) == nil)
     }
 
-    @Test("Single account shows Current and Last amounts")
+    @Test("Single account shows Last and Current per-source amounts")
     func singleAccount() {
         let payload = CombinedReportPushBuilder.build(
-            current: [Self.report(id: 1, displayName: "PNC Spending", netSpending: 150.00)],
-            last: [Self.report(id: 1, displayName: "PNC Spending", netSpending: 301.21)]
+            current: [Self.report(id: 1, displayName: "PNC Spending", amount: 150.00)],
+            last: [Self.report(id: 1, displayName: "PNC Spending", amount: 301.21)]
         )
         #expect(payload?.title == "PNC Spending")
-        #expect(payload?.body == "Current: $150.00\nLast: $301.21")
+        #expect(payload?.body == "Last: Checking $301.21\nCurrent: Checking $150.00")
         #expect(payload?.data["deepLink"] == "paydown")
         #expect(payload?.data["accountId"] == "1")
     }
 
-    @Test("Missing current cycle for an account falls back to $0.00")
+    @Test("Missing current cycle falls back to $0.00")
     func singleAccountNoCurrent() {
         let payload = CombinedReportPushBuilder.build(
             current: [],
-            last: [Self.report(id: 1, displayName: "PNC Spending", netSpending: 301.21)]
+            last: [Self.report(id: 1, displayName: "PNC Spending", amount: 301.21)]
         )
-        #expect(payload?.body == "Current: $0.00\nLast: $301.21")
+        #expect(payload?.body == "Last: Checking $301.21\nCurrent: $0.00")
     }
 
     @Test("Multi-account combines into one summary push")
     func multiAccount() {
         let payload = CombinedReportPushBuilder.build(
             current: [
-                Self.report(id: 1, displayName: "PNC Spending", netSpending: 150.00),
-                Self.report(id: 2, displayName: "Chase Sapphire", netSpending: 20.00),
+                Self.report(id: 1, displayName: "PNC Spending", amount: 150.00),
+                Self.report(id: 2, displayName: "Chase Sapphire", amount: 20.00),
             ],
             last: [
-                Self.report(id: 1, displayName: "PNC Spending", netSpending: 301.21),
-                Self.report(id: 2, displayName: "Chase Sapphire", netSpending: 54.12),
+                Self.report(id: 1, displayName: "PNC Spending", amount: 301.21),
+                Self.report(id: 2, displayName: "Chase Sapphire", amount: 54.12),
             ]
         )
         #expect(payload?.title == "Paydown summary")
-        #expect(payload?.body == "PNC Spending — Current $150.00 / Last $301.21 • Chase Sapphire — Current $20.00 / Last $54.12")
+        #expect(payload?.body == "PNC Spending — Last: Checking $301.21 | Current: Checking $150.00\nChase Sapphire — Last: Checking $54.12 | Current: Checking $20.00")
         #expect(payload?.data["deepLink"] == "paydown")
-        // accountId is omitted for multi-account pushes.
         #expect(payload?.data["accountId"] == nil)
     }
 }

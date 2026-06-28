@@ -25,21 +25,21 @@ struct PaydownCommand: AsyncParsableCommand {
             return try await client.fetchWeeklyPaydown(username: username, password: password)
         }.value
 
-        print("Period: \(result.periodStart) → \(result.periodEnd)")
+        func money(_ v: Double) -> String { String(format: "$%.2f", v) }
+        func printCycle(_ label: String, _ cycle: APIClient.WeeklyPaydownCycle) {
+            print("  \(label): \(money(cycle.amountToPay))")
+            for b in cycle.buckets {
+                print("    • \(b.sourceAccountName) (\(b.ruleName)): \(money(b.amount)) — \(b.transactionCount) txn\(b.transactionCount == 1 ? "" : "s")")
+            }
+        }
+
+        print("Last cycle:    \(result.periodStart) → \(result.periodEnd)")
+        print("Current cycle: \(result.currentPeriodStart) → \(result.currentPeriodEnd)")
         print(String(repeating: "─", count: 60))
         for account in result.accounts {
-            print("\(account.displayName)")
-            print("  Current balance: \(account.balance)")
-            if account.pendingAdjustment != 0 {
-                print("  Pending this period: +\(String(format: "$%.2f", account.pendingAdjustment))")
-            }
-            if account.postPeriodAdjustment != 0 {
-                print("  Posted after period: −\(String(format: "$%.2f", account.postPeriodAdjustment))")
-            }
-            if account.transferTotal != 0 {
-                print("  Covered by transfers: −\(String(format: "$%.2f", account.transferTotal))")
-            }
-            print("  Amount to pay: \(String(format: "$%.2f", account.amountToPay))")
+            print("\(account.displayName)  (balance \(account.balance))")
+            printCycle("Last", account.last)
+            printCycle("Current", account.current)
         }
         print(String(repeating: "─", count: 60))
         print("Notification body: \(result.body)")

@@ -63,15 +63,7 @@ struct WeeklyPaydownView: View {
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
-                                transferBreakdownSection(
-                                    periodDomainTransactions: periodDomainTx,
-                                    domainVendors: domainVendors,
-                                    domainRules: domainRules,
-                                    domainAccounts: domainAccounts
-                                )
-                                calculationBreakdownSection(
-                                    periodDomainTransactions: periodDomainTx,
-                                    periodTransactions: periodTx,
+                                paydownBreakdownSection(
                                     domainAccounts: domainAccounts,
                                     domainVendors: domainVendors,
                                     domainRules: domainRules,
@@ -179,67 +171,9 @@ struct WeeklyPaydownView: View {
         .padding(.horizontal)
     }
 
-    private func transferBreakdownSection(
-        periodDomainTransactions: [FinanceCoreSDK.Transaction],
-        domainVendors: [FinanceCoreSDK.Vendor],
-        domainRules: [FinanceCoreSDK.TransferRule],
-        domainAccounts: [FinanceCoreSDK.Account]
-    ) -> some View {
-        let accountRules = domainRules.filter { $0.targetAccountId == selectedAccountId }
-        let breakdown = TransferBreakdown.compute(
-            accountId: selectedAccountId,
-            periodTransactions: periodDomainTransactions,
-            vendors: domainVendors,
-            rules: domainRules,
-            accounts: domainAccounts
-        )
-
-        return Group {
-            if !accountRules.isEmpty && !breakdown.isEmpty {
-                VStack(spacing: 0) {
-                    Text("Transfer Breakdown")
-                        .font(.headline)
-                        .padding(.bottom, 12)
-
-                    ForEach(breakdown) { item in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.sourceAccountName)
-                                    .font(.body)
-                                Text("\(item.ruleName) — \(item.transactionCount) transaction\(item.transactionCount == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(CurrencyFormatter.format(amount: item.amount, currency: "USD"))
-                                .font(.body.monospacedDigit())
-                        }
-                        .padding(.vertical, 6)
-                    }
-
-                    Divider()
-                        .padding(.vertical, 8)
-
-                    HStack {
-                        Text("Total")
-                            .font(.title3.bold())
-                        Spacer()
-                        Text(CurrencyFormatter.format(amount: breakdown.reduce(0) { $0 + $1.amount }, currency: "USD"))
-                            .font(.title3.bold())
-                            .foregroundStyle(.green)
-                    }
-                }
-                .padding()
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
-                .padding(.horizontal)
-            }
-        }
-    }
-
-    private func calculationBreakdownSection(
-        periodDomainTransactions: [FinanceCoreSDK.Transaction],
-        periodTransactions: [PersistenceService.Transaction],
+    /// Per-source paydown: each bucket = how much to transfer from a funding account to cover
+    /// that account's share of the period's charges. Card payments are excluded by the shared calc.
+    private func paydownBreakdownSection(
         domainAccounts: [FinanceCoreSDK.Account],
         domainVendors: [FinanceCoreSDK.Vendor],
         domainRules: [FinanceCoreSDK.TransferRule],
@@ -252,136 +186,54 @@ struct WeeklyPaydownView: View {
             rules: domainRules,
             vendors: domainVendors
         )
-        let calc = report?.calculation ?? PaydownCalculation.compute(account: nil, periodTransactions: [], postPeriodClearedTransactions: [])
-        let breakdown = report?.transferBreakdown ?? []
-        let transferTotal = report?.transferTotal ?? 0
-        let hasTransfers = !breakdown.isEmpty
-        let finalAmount = report?.netAdjustedSpending ?? 0
-
-        // Sub-filter SwiftData transactions for list navigation
-        let debitTransactions = periodTransactions.filter { $0.toBase >= 0 }
-        let creditTransactions = periodTransactions.filter { $0.toBase < 0 }
-        let debitTotal = debitTransactions.reduce(0.0) { $0 + abs($1.toBase) }
-        let creditTotal = creditTransactions.reduce(0.0) { $0 + abs($1.toBase) }
-        let pendingTransactions = periodTransactions.filter { $0.isPending }
-        let postedInPeriod = periodTransactions.filter { !$0.isPending }
+        let buckets = report?.buckets ?? []
+        let total = report?.amountToPay ?? 0
 
         return VStack(spacing: 0) {
-            Text("Paydown Calculation")
+            Text("Pay From Each Account")
                 .font(.headline)
                 .padding(.bottom, 12)
 
-            NavigationLink {
-                FilteredTransactionListView(
-                    title: "Period Debits",
-                    transactions: debitTransactions
-                )
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Period Debits")
+            if buckets.isEmpty {
+                Text("No charges in this period.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(buckets) { bucket in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(bucket.sourceAccountName)
                                 .font(.body)
-                            Spacer()
-                            Text(CurrencyFormatter.format(amount: debitTotal, currency: "USD"))
-                                .font(.body.monospacedDigit())
+                            Text("\(bucket.ruleName) — \(bucket.transactionCount) transaction\(bucket.transactionCount == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        Text("\(debitTransactions.count) transaction\(debitTransactions.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(CurrencyFormatter.format(amount: bucket.amount, currency: "USD"))
+                            .font(.body.monospacedDigit())
                     }
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
                 }
-                .padding(.vertical, 6)
-            }
-            .foregroundStyle(.primary)
-
-            NavigationLink {
-                FilteredTransactionListView(
-                    title: "Period Credits",
-                    transactions: creditTransactions
-                )
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Period Credits")
-                                .font(.body)
-                            Spacer()
-                            Text(CurrencyFormatter.format(amount: creditTotal, currency: "USD"))
-                                .font(.body.monospacedDigit())
-                                .foregroundStyle(.green)
-                        }
-                        Text("\(creditTransactions.count) transaction\(creditTransactions.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 6)
-            }
-            .foregroundStyle(.primary)
-
-            Text("\(postedInPeriod.count) posted · \(pendingTransactions.count) pending")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 4)
-
-            Divider()
-                .padding(.vertical, 4)
-
-            CalculationRow(
-                label: "Current Balance",
-                amount: calc.currentBalance,
-                explanation: "The card's balance right now.",
-                isTotal: false,
-                sign: ""
-            )
-
-            if calc.pendingAdjustment > 0 {
-                CalculationRow(
-                    label: "Pending This Period",
-                    amount: calc.pendingAdjustment,
-                    explanation: "Charges dated in this period that haven't posted yet, so they aren't in the balance. Added because you'll still pay them.",
-                    isTotal: false,
-                    sign: "+"
-                )
-            }
-
-            if calc.postPeriodAdjustment > 0 {
-                CalculationRow(
-                    label: "Posted After Period",
-                    amount: calc.postPeriodAdjustment,
-                    explanation: "Charges that posted after this period ended. They're in the balance but belong to a later week, so they're subtracted.",
-                    isTotal: false,
-                    sign: "−"
-                )
-            }
-
-            if hasTransfers {
-                CalculationRow(
-                    label: "Covered by Transfers",
-                    amount: transferTotal,
-                    explanation: "Amount covered by transfers from other accounts. These are subtracted since the linked accounts will handle the payment.",
-                    isTotal: false,
-                    sign: "−"
-                )
             }
 
             Divider()
                 .padding(.vertical, 8)
 
-            CalculationRow(
-                label: "Amount to Pay",
-                amount: finalAmount,
-                explanation: "Current balance, plus pending charges this period, minus charges that posted after the period, minus amounts covered by transfers.",
-                isTotal: true,
-                sign: "="
-            )
+            HStack {
+                Text("Amount to Pay")
+                    .font(.title2.bold())
+                Spacer()
+                Text(CurrencyFormatter.format(amount: total, currency: "USD"))
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
+            }
+
+            Text("Each row is a transfer from that account for the charges it funds. Card payments are excluded.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
         }
         .padding()
         .background(Color(.systemBackground))
@@ -447,37 +299,5 @@ struct WeeklyPaydownView: View {
             }
         }
         .padding()
-    }
-}
-
-struct CalculationRow: View {
-    let label: String
-    let amount: Double
-    let explanation: String
-    let isTotal: Bool
-    let sign: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                if !sign.isEmpty {
-                    Text(sign)
-                        .font(isTotal ? .title2.bold() : .body)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                }
-                Text(label)
-                    .font(isTotal ? .title2.bold() : .body)
-                Spacer()
-                Text(CurrencyFormatter.format(amount: amount, currency: "USD"))
-                    .font(isTotal ? .title2.bold() : .body.monospacedDigit())
-                    .foregroundStyle(isTotal ? .green : .primary)
-            }
-            Text(explanation)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 6)
     }
 }

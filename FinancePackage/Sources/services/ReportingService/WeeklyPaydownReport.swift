@@ -2,8 +2,11 @@ import FinanceCoreSDK
 import Foundation
 
 public struct WeeklyPaydownReport {
-    /// Unified entry point. Computes a per-credit-account paydown report for the given date range.
-    /// `rules` and `vendors` are optional — when omitted, no bill-mapping subtraction is applied.
+    /// Computes a per-credit-account paydown for the given date range using charge-allocation:
+    /// each in-period charge is bucketed to the funding account named by the user's transfer rules,
+    /// card payments are excluded, and refunds net within their bucket. The amount to pay is the
+    /// sum of the buckets — purely the period's spending, never reconstructed from the balance, so
+    /// payments can't inflate it.
     /// Date filter convention: `tx.date >= range.start && tx.date <= range.end` (both inclusive).
     public static func compute(
         accounts: [Account],
@@ -21,18 +24,7 @@ public struct WeeklyPaydownReport {
                         tx.date <= dateRange.end &&
                         !tx.isIncome
                 }
-                let postPeriodTx = transactions.filter { tx in
-                    tx.plaidAccountId == account.lunchMoneyId &&
-                        tx.date > dateRange.end &&
-                        !tx.isPending &&
-                        !tx.isIncome
-                }
-                let calculation = PaydownCalculation.compute(
-                    account: account,
-                    periodTransactions: periodTx,
-                    postPeriodClearedTransactions: postPeriodTx
-                )
-                let breakdown = TransferBreakdown.compute(
+                let buckets = TransferBreakdown.compute(
                     accountId: account.lunchMoneyId,
                     periodTransactions: periodTx,
                     vendors: vendors,
@@ -41,8 +33,7 @@ public struct WeeklyPaydownReport {
                 )
                 return AccountPaydownReport(
                     account: account,
-                    calculation: calculation,
-                    transferBreakdown: breakdown,
+                    buckets: buckets,
                     periodStart: dateRange.start,
                     periodEnd: dateRange.end
                 )
@@ -68,15 +59,16 @@ public struct WeeklyPaydownReport {
         )
     }
 
-    /// Formats the canonical "weekly paydown" value (`netAdjustedSpending`) per credit account.
-    /// Used for push notification bodies. This is the balance-based amount to pay
-    /// (balance + in-period pending − post-period posted − transfers), the same value
-    /// the iOS Weekly Paydown view shows as "Amount to Pay".
+    /// Formats the canonical paydown for a push body: one segment per account, each listing its
+    /// source buckets, e.g. "PNC Core — Reserve: $272.45, Payroll: $1,140.00".
     public static func notificationBody(from reports: [AccountPaydownReport]) -> String {
         reports
             .map { report in
-                let formatted = String(format: "$%.2f", report.netAdjustedSpending)
-                return "\(report.account.displayName): \(formatted)"
+                let parts = report.buckets.map { bucket in
+                    "\(bucket.sourceAccountName): \(String(format: "$%.2f", bucket.amount))"
+                }
+                let detail = parts.isEmpty ? String(format: "$%.2f", report.amountToPay) : parts.joined(separator: ", ")
+                return "\(report.account.displayName) — \(detail)"
             }
             .joined(separator: " | ")
     }

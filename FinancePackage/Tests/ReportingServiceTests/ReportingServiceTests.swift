@@ -5,6 +5,10 @@ import Foundation
 
 // MARK: - Helpers
 
+private extension Double {
+    func isApprox(_ other: Double, tol: Double = 0.005) -> Bool { (self - other).magnitude < tol }
+}
+
 private func makeAccount(id: Int = 1, type: String = "credit", balance: String = "1000.00") -> Account {
     Account(
         lunchMoneyId: id,
@@ -24,25 +28,29 @@ private func makeTransaction(
     id: Int = 1,
     payee: String = "Vendor",
     isPending: Bool = false,
-    toBase: Double = 100.0
+    toBase: Double = 100.0,
+    date: String = "2026-05-01",
+    plaidAccountId: Int? = nil,
+    isIncome: Bool = false
 ) -> Transaction {
     Transaction(
         lunchMoneyId: id,
-        date: "2026-05-01",
+        date: date,
         payee: payee,
         amount: "100.00",
         currency: "usd",
         toBase: toBase,
         originalName: payee,
         status: isPending ? "pending" : "cleared",
-        isIncome: false,
+        isIncome: isIncome,
         isPending: isPending,
         excludeFromBudget: false,
         excludeFromTotals: false,
         createdAt: "2026-05-01",
         updatedAt: "2026-05-01",
         hasChildren: false,
-        isGroup: false
+        isGroup: false,
+        plaidAccountId: plaidAccountId
     )
 }
 
@@ -136,281 +144,159 @@ private func knownMonday() -> Date {
     }
 }
 
-// MARK: - PaydownCalculation
-
-@Suite struct PaydownCalculationTests {
-    @Test("nil account produces all-zero result")
-    func computeNilAccount() {
-        let result = PaydownCalculation.compute(
-            account: nil,
-            periodTransactions: [],
-            postPeriodClearedTransactions: []
-        )
-        #expect(result.currentBalance == 0)
-        #expect(result.pendingAdjustment == 0)
-        #expect(result.postPeriodAdjustment == 0)
-        #expect(result.adjustedSpending == 0)
-    }
-
-    @Test("account balance is reflected with no transactions")
-    func computeBalanceOnly() {
-        let result = PaydownCalculation.compute(
-            account: makeAccount(balance: "750.00"),
-            periodTransactions: [],
-            postPeriodClearedTransactions: []
-        )
-        #expect(result.currentBalance == 750.0)
-        #expect(result.adjustedSpending == 750.0)
-    }
-
-    @Test("pending period transactions are added to the adjustment")
-    func computePendingAdjustment() {
-        let pending = [
-            makeTransaction(id: 1, isPending: true, toBase: 50.0),
-            makeTransaction(id: 2, isPending: true, toBase: 30.0)
-        ]
-        let result = PaydownCalculation.compute(
-            account: makeAccount(balance: "1000.00"),
-            periodTransactions: pending,
-            postPeriodClearedTransactions: []
-        )
-        #expect(result.pendingAdjustment == 80.0)
-        #expect(result.adjustedSpending == 1080.0)
-    }
-
-    @Test("post-period cleared transactions are subtracted from adjusted spending")
-    func computePostPeriodAdjustment() {
-        let postPeriod = [makeTransaction(id: 1, isPending: false, toBase: 200.0)]
-        let result = PaydownCalculation.compute(
-            account: makeAccount(balance: "1000.00"),
-            periodTransactions: [],
-            postPeriodClearedTransactions: postPeriod
-        )
-        #expect(result.postPeriodAdjustment == 200.0)
-        #expect(result.adjustedSpending == 800.0)
-    }
-
-    @Test("post-period refunds net out (signed, not abs)")
-    func computePostPeriodRefundNetsOut() {
-        // A $100 charge and a $30 refund posted after the period. Signed total is $70, so the
-        // cycle-end balance is balance − 70. Using abs would wrongly subtract 130.
-        let postPeriod = [
-            makeTransaction(id: 1, isPending: false, toBase: 100.0),
-            makeTransaction(id: 2, isPending: false, toBase: -30.0)
-        ]
-        let result = PaydownCalculation.compute(
-            account: makeAccount(balance: "1000.00"),
-            periodTransactions: [],
-            postPeriodClearedTransactions: postPeriod
-        )
-        #expect(result.postPeriodAdjustment == 70.0)
-        #expect(result.adjustedSpending == 930.0)
-    }
-
-    @Test("non-pending period transactions are excluded from pending adjustment")
-    func computeNonPendingExcluded() {
-        let cleared = [makeTransaction(id: 1, isPending: false, toBase: 100.0)]
-        let result = PaydownCalculation.compute(
-            account: makeAccount(balance: "1000.00"),
-            periodTransactions: cleared,
-            postPeriodClearedTransactions: []
-        )
-        #expect(result.pendingAdjustment == 0)
-        #expect(result.adjustedSpending == 1000.0)
-    }
-}
-
-// MARK: - TransferBreakdown
+// MARK: - TransferBreakdown (per-source charge allocation)
 
 @Suite struct TransferBreakdownTests {
-    @Test("returns empty when no rules target the account")
+    @Test("no rules: all charges fall into one Unspecified bucket")
     func computeNoMatchingRules() {
         let result = TransferBreakdown.compute(
-            accountId: 99,
-            periodTransactions: [makeTransaction()],
+            accountId: 1,
+            periodTransactions: [makeTransaction(toBase: 50)],
             vendors: [], rules: [], accounts: []
         )
-        #expect(result.isEmpty)
+        #expect(result.count == 1)
+        #expect(result[0].sourceAccountName == "Unspecified")
+        #expect(result[0].amount == 50)
     }
 
-    @Test("matches transactions to a named vendor rule")
+    @Test("matches transactions to a named vendor rule's source bucket")
     func computeVendorRuleMatch() {
         let vendor = Vendor(name: "Amazon", filterText: "amazon")
-        let rule = TransferRule(
-            name: "Shopping", vendor: vendor,
-            sourceAccountId: 10, targetAccountId: 1, priority: 1
-        )
+        let rule = TransferRule(name: "Shopping", vendor: vendor, sourceAccountId: 10, targetAccountId: 1, priority: 1)
         let tx = makeTransaction(id: 1, payee: "Amazon Prime", toBase: 120.0)
         let sourceAccount = makeAccount(id: 10, type: "depository", balance: "500.00")
 
         let result = TransferBreakdown.compute(
             accountId: 1,
             periodTransactions: [tx],
-            vendors: [vendor],
-            rules: [rule],
-            accounts: [sourceAccount]
+            vendors: [vendor], rules: [rule], accounts: [sourceAccount]
         )
 
         #expect(result.count == 1)
         #expect(result[0].ruleName == "Shopping")
         #expect(result[0].amount == 120.0)
-        #expect(result[0].transactionCount == 1)
         #expect(result[0].sourceAccountName == "Account 10")
     }
 
-    @Test("routes unmatched transactions to the default nil-vendor rule")
-    func computeDefaultRule() {
-        let rule = TransferRule(
-            name: "Other", vendor: nil,
-            sourceAccountId: nil, targetAccountId: 1, priority: 0
-        )
-        let tx = makeTransaction(id: 1, payee: "Unknown Vendor", toBase: 75.0)
-
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: [tx],
-            vendors: [], rules: [rule], accounts: []
-        )
-
-        #expect(result.count == 1)
-        #expect(result[0].ruleName == "Other")
-        #expect(result[0].amount == 75.0)
-        #expect(result[0].sourceAccountName == "Unspecified")
-    }
-
-    @Test("sums amounts for multiple transactions matched by same rule")
-    func computeMultipleTransactionsSummed() {
-        let vendor = Vendor(name: "Starbucks", filterText: "starbucks")
-        let rule = TransferRule(
-            name: "Coffee", vendor: vendor,
-            sourceAccountId: nil, targetAccountId: 1, priority: 1
-        )
+    @Test("vendor-matched charges and the rest split into separate source buckets")
+    func computeVendorAndDefaultSplit() {
+        let cloud9 = Vendor(name: "Cloud 9", filterText: "cloud 9")
+        let cloud9Rule = TransferRule(name: "Cloud 9 → Reserve", vendor: cloud9, sourceAccountId: 10, targetAccountId: 1, priority: 1)
+        let defaultRule = TransferRule(name: "Everything Else → Payroll", vendor: nil, sourceAccountId: 20, targetAccountId: 1, priority: 0)
+        let reserve = makeAccount(id: 10, type: "depository")
+        let payroll = makeAccount(id: 20, type: "depository")
         let txs = [
-            makeTransaction(id: 1, payee: "Starbucks #1", toBase: 5.0),
-            makeTransaction(id: 2, payee: "Starbucks #2", toBase: 6.5)
+            makeTransaction(id: 1, payee: "Cloud 9 Aviation", toBase: 200),
+            makeTransaction(id: 2, payee: "Target", toBase: 60),
+            makeTransaction(id: 3, payee: "Walmart", toBase: 40),
         ]
 
         let result = TransferBreakdown.compute(
             accountId: 1,
             periodTransactions: txs,
-            vendors: [vendor],
-            rules: [rule],
-            accounts: []
+            vendors: [cloud9], rules: [cloud9Rule, defaultRule], accounts: [reserve, payroll]
         )
 
+        #expect(result.count == 2)
+        let cloud9Bucket = result.first { $0.ruleName == "Cloud 9 → Reserve" }
+        let defaultBucket = result.first { $0.ruleName == "Everything Else → Payroll" }
+        #expect(cloud9Bucket?.amount == 200)
+        #expect(defaultBucket?.amount == 100) // 60 + 40
+    }
+
+    @Test("payment-kind rule excludes card payments from every bucket")
+    func computePaymentExclusion() {
+        let payVendor = Vendor(name: "PNC Payment", filterText: "THANK YOU FOR YOUR PMT")
+        let paymentRule = TransferRule(name: "PNC Payment", vendor: payVendor, targetAccountId: 1, kind: .payment)
+        let defaultRule = TransferRule(name: "Default", vendor: nil, sourceAccountId: 20, targetAccountId: 1)
+        let payroll = makeAccount(id: 20, type: "depository")
+        let txs = [
+            makeTransaction(id: 1, payee: "Target", toBase: 100),
+            makeTransaction(id: 2, payee: "THANK YOU FOR YOUR PMT 06/20 XXXX4705", toBase: -1000),
+        ]
+
+        let result = TransferBreakdown.compute(
+            accountId: 1,
+            periodTransactions: txs,
+            vendors: [payVendor], rules: [paymentRule, defaultRule], accounts: [payroll]
+        )
+
+        // The -1000 payment is dropped entirely; only the $100 charge remains in the default bucket.
         #expect(result.count == 1)
-        #expect(result[0].amount == 11.5)
-        #expect(result[0].transactionCount == 2)
+        #expect(result[0].amount == 100)
+    }
+
+    @Test("refunds net against charges within their bucket (signed)")
+    func computeRefundNets() {
+        let defaultRule = TransferRule(name: "Default", vendor: nil, sourceAccountId: 20, targetAccountId: 1)
+        let payroll = makeAccount(id: 20, type: "depository")
+        let txs = [
+            makeTransaction(id: 1, payee: "Target", toBase: 500),
+            makeTransaction(id: 2, payee: "Target", toBase: -500), // mistaken charge refunded same period
+        ]
+        let result = TransferBreakdown.compute(
+            accountId: 1,
+            periodTransactions: txs,
+            vendors: [], rules: [defaultRule], accounts: [payroll]
+        )
+        #expect(result.count == 1)
+        #expect(result[0].amount == 0) // net zero — no overpay
     }
 }
 
-// MARK: - User's hand-calculated paydown (balance-based method)
+// MARK: - WeeklyPaydownReport (charge-allocation end-to-end)
 //
-// Reproduces Bill's manual calculation for the completed week (cycle ending 6/12/2026)
-// on PNC Core - Spending. His method:
-//   1. Start from the current balance.
-//   2. Subtract charges that POSTED after the cycle period (6/13, 6/14, 6/15) — they
-//      are already baked into the balance but belong to next week.
-//   3. Add pending charges that occurred DURING the cycle (not yet in the balance). [none this week]
-//   4. Subtract special charges covered by transfers from other accounts
-//      (Cloud 9 Aviation, paid from PNC Six Month Reserve).
-//
-//   2417.33 − 36.45 − 10.55 − 60 − 240.79 − 535 − 6.99 − 49.99 − 49.99 − 197.30 − 267.31 = 962.96
-//
-// This is exactly `AccountPaydownReport.netAdjustedSpending`
-// (= adjustedSpending − transferTotal = balance + pending − postPeriod − transfers).
-// The current UI/notification instead surface `netPeriodSpending` (the signed sum of
-// in-period debits and credits), which is the value Bill saw as -1047.80 — wrong because
-// in-period card *payments* drag it negative.
+// Models Bill's setup on PNC Core: Cloud 9 → Reserve, everything else → Payroll, and a
+// payment rule excluding "THANK YOU FOR YOUR PMT". The amount to pay is purely the period's
+// charges per source — a card payment posting can never inflate it.
 
-@Suite struct UserHandCalcPaydownTests {
-    private let coreAccountId = 344066
-    private let reserveAccountId = 344059
+@Suite struct WeeklyPaydownReportTests {
+    private let coreId = 344066
+    private let reserveId = 344059
+    private let payrollId = 344060
 
-    // Charges the user subtracted because they posted AFTER the cycle (6/13–6/15).
-    private let postPeriodPostedCharges: [Double] = [36.45, 10.55, 60, 240.79, 535, 6.99, 49.99, 49.99]
-    // Cloud 9 charges inside the cycle, covered by a transfer from Six Month Reserve.
-    private let cloud9InPeriod: [Double] = [267.31, 197.30] // 6/6 and 6/9
+    @Test("per-source buckets exclude payments and net refunds")
+    func perSourceAllocation() {
+        let core = Account(lunchMoneyId: coreId, name: "Core", displayName: "PNC Core", type: "credit",
+                           subtype: "credit card", mask: "4705", institutionName: "PNC", status: "active",
+                           balance: "451.10", currency: "usd")
+        let reserve = makeAccount(id: reserveId, type: "depository")
+        let payroll = makeAccount(id: payrollId, type: "depository")
 
-    private func coreAccount() -> Account {
-        Account(
-            lunchMoneyId: coreAccountId,
-            name: "PNC Core - Spending",
-            displayName: "PNC PNC Core - Spending",
-            type: "credit",
-            subtype: "credit card",
-            mask: "4705",
-            institutionName: "PNC",
-            status: "active",
-            balance: "2417.33",
-            currency: "usd"
-        )
-    }
+        let cloud9 = Vendor(name: "Cloud 9", filterText: "cloud 9")
+        let payVendor = Vendor(name: "PNC Payment", filterText: "THANK YOU FOR YOUR PMT")
+        let rules = [
+            TransferRule(name: "Cloud 9 → Reserve", vendor: cloud9, sourceAccountId: reserveId, targetAccountId: coreId, priority: 1),
+            TransferRule(name: "Everything Else → Payroll", vendor: nil, sourceAccountId: payrollId, targetAccountId: coreId, priority: 0),
+            TransferRule(name: "PNC Payment", vendor: payVendor, targetAccountId: coreId, kind: .payment),
+        ]
+        // Period 6/13–6/19; includes Cloud 9 charges, other charges, and a big card payment.
+        let txs = [
+            makeTransaction(id: 1, payee: "Cloud 9 Aviation", toBase: 197.30, date: "2026-06-14", plaidAccountId: coreId),
+            makeTransaction(id: 2, payee: "Target", toBase: 240.79, date: "2026-06-15", plaidAccountId: coreId),
+            makeTransaction(id: 3, payee: "Walmart", toBase: 60, date: "2026-06-16", plaidAccountId: coreId),
+            makeTransaction(id: 4, payee: "THANK YOU FOR YOUR PMT 06/16 XXXX4705", toBase: -962.96, date: "2026-06-16", plaidAccountId: coreId),
+        ]
 
-    private func cloud9Rule() -> (TransferRule, Vendor) {
-        let vendor = Vendor(name: "Cloud 9 Aviation", filterText: "cloud 9")
-        let rule = TransferRule(
-            name: "Cloud 9 Reserve",
-            vendor: vendor,
-            sourceAccountId: reserveAccountId,
-            targetAccountId: coreAccountId,
-            priority: 1
-        )
-        return (rule, vendor)
-    }
-
-    @Test("balance-based net paydown reproduces Bill's hand calc of 962.96")
-    func reproducesHandCalc() {
-        let account = coreAccount()
-        let (rule, vendor) = cloud9Rule()
-        let reserve = makeAccount(id: reserveAccountId, type: "depository", balance: "77254.73")
-
-        // In-period transactions: just the two Cloud 9 charges (the transfer-covered ones).
-        // (Other in-period spending is already reflected in the balance and not pending,
-        //  so it does not affect the balance-based formula.)
-        var id = 1
-        let periodTx: [Transaction] = cloud9InPeriod.map { amt in
-            defer { id += 1 }
-            return makeTransaction(id: id, payee: "Cloud 9 Aviation", isPending: false, toBase: amt)
-        }
-
-        // Post-period POSTED charges (6/13–6/15) — subtracted from the balance.
-        let postPeriodTx: [Transaction] = postPeriodPostedCharges.map { amt in
-            defer { id += 1 }
-            return makeTransaction(id: id, payee: "Post-period charge", isPending: false, toBase: amt)
-        }
-
-        let calculation = PaydownCalculation.compute(
-            account: account,
-            periodTransactions: periodTx,
-            postPeriodClearedTransactions: postPeriodTx
-        )
-        let breakdown = TransferBreakdown.compute(
-            accountId: coreAccountId,
-            periodTransactions: periodTx,
-            vendors: [vendor],
-            rules: [rule],
-            accounts: [account, reserve]
-        )
-        let report = AccountPaydownReport(
-            account: account,
-            calculation: calculation,
-            transferBreakdown: breakdown,
-            periodStart: "2026-06-06",
-            periodEnd: "2026-06-12"
+        let reports = WeeklyPaydownReport.compute(
+            accounts: [core, reserve, payroll],
+            transactions: txs,
+            rules: rules,
+            vendors: [cloud9, payVendor],
+            dateRange: PaydownDateRange(start: "2026-06-13", end: "2026-06-19")
         )
 
-        // Transfer covers exactly the two Cloud 9 charges.
-        #expect(report.transferTotal == 464.61)
-        // balance(2417.33) − postPeriod(989.76) + pending(0) = 1427.57
-        #expect((calculation.adjustedSpending - 1427.57).magnitude < 0.005)
-        // Final amount Bill pays on PNC Core.
-        #expect((report.netAdjustedSpending - 962.96).magnitude < 0.005)
+        #expect(reports.count == 1)
+        let report = reports[0]
+        let reserveBucket = report.buckets.first { $0.sourceAccountName.contains("\(reserveId)") || $0.ruleName.contains("Cloud 9") }
+        let payrollBucket = report.buckets.first { $0.ruleName.contains("Everything Else") }
+        #expect((reserveBucket?.amount ?? 0).isApprox(197.30))
+        #expect((payrollBucket?.amount ?? 0).isApprox(300.79)) // 240.79 + 60, payment excluded
+        // Amount to pay is the sum of charge buckets — the −962.96 payment never inflates it.
+        #expect((report.amountToPay - 498.09).magnitude < 0.005)
 
-        // The shared notification formatter surfaces this same balance-based value
-        // (not the signed period sum) — the canonical "amount to pay".
-        let body = WeeklyPaydownReport.notificationBody(from: [report])
-        #expect(body.contains("$962.96"))
+        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        #expect(body.contains("PNC Core"))
     }
 }
 

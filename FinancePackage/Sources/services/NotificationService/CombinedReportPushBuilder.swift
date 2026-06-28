@@ -3,11 +3,8 @@ import Foundation
 import ReportingService
 
 /// Builds a single combined `NotificationPayload` covering one or more credit accounts.
-/// Each account shows two balance-based amounts (`netAdjustedSpending`):
-///   Current → the in-progress cycle, Last → the last completed cycle (the amount to pay now).
-/// The shape adapts to the count of accounts:
-///   1 account  → title = displayName, body = "Current: $X.XX\nLast: $Y.YY"
-///   2+ accounts → title = "Paydown summary", body = "Acct1 — Current $X / Last $Y • Acct2 — …"
+/// Each account shows two cycles — Current (in-progress) and Last (completed, the one to pay) —
+/// each as a per-source amount: how much to transfer from each funding account.
 public enum CombinedReportPushBuilder {
     public static func build(
         current: [AccountPaydownReport],
@@ -15,21 +12,27 @@ public enum CombinedReportPushBuilder {
     ) -> NotificationPayload? {
         guard !last.isEmpty else { return nil }
 
-        // Index current-cycle amounts by account so we can pair them with the last-cycle rows.
         let currentByAccount = Dictionary(
-            current.map { ($0.account.lunchMoneyId, $0.netAdjustedSpending) },
+            current.map { ($0.account.lunchMoneyId, $0) },
             uniquingKeysWith: { first, _ in first }
         )
+
         func amount(_ value: Double) -> String { String(format: "$%.2f", value) }
-        func currentAmount(for report: AccountPaydownReport) -> String {
-            amount(currentByAccount[report.account.lunchMoneyId] ?? 0)
+
+        /// "Reserve $272.45 · Payroll $1,140.00" — one segment per source bucket.
+        func bucketLine(_ report: AccountPaydownReport?) -> String {
+            guard let report, !report.buckets.isEmpty else { return amount(report?.amountToPay ?? 0) }
+            return report.buckets
+                .map { "\($0.sourceAccountName) \(amount($0.amount))" }
+                .joined(separator: " · ")
         }
 
         if last.count == 1 {
             let r = last[0]
+            let cur = currentByAccount[r.account.lunchMoneyId]
             return NotificationPayload(
                 title: r.account.displayName,
-                body: "Current: \(currentAmount(for: r))\nLast: \(amount(r.netAdjustedSpending))",
+                body: "Last: \(bucketLine(r))\nCurrent: \(bucketLine(cur))",
                 data: [
                     "deepLink": "paydown",
                     "accountId": String(r.account.lunchMoneyId)
@@ -37,12 +40,12 @@ public enum CombinedReportPushBuilder {
             )
         }
 
-        let parts = last.map { r in
-            "\(r.account.displayName) — Current \(currentAmount(for: r)) / Last \(amount(r.netAdjustedSpending))"
+        let parts = last.map { r -> String in
+            "\(r.account.displayName) — Last: \(bucketLine(r)) | Current: \(bucketLine(currentByAccount[r.account.lunchMoneyId]))"
         }
         return NotificationPayload(
             title: "Paydown summary",
-            body: parts.joined(separator: " • "),
+            body: parts.joined(separator: "\n"),
             data: ["deepLink": "paydown"]
         )
     }

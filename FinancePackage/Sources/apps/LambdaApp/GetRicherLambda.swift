@@ -566,11 +566,9 @@ struct GetRicherLambda {
     /// consulted by the hourly sync, never by report/API reads. TransferRules + Vendors are pushed
     /// by the iOS app and applied here so the amounts match the iOS Weekly Paydown view.
     ///
-    /// Both cycles use the same balance-based amount (`netAdjustedSpending`). The last cycle
-    /// subtracts charges that posted *after* it, so we fetch transactions from the last cycle's
-    /// start through **today** — one fetch feeds both `WeeklyPaydownReport.compute` calls, which
-    /// split in-period vs post-period internally. This is the identical computation the iOS view
-    /// runs over its local data.
+    /// Both cycles use the same charge-allocation calc (per-source buckets, card payments excluded).
+    /// One transaction fetch (last cycle's start through today) feeds both `WeeklyPaydownReport.compute`
+    /// calls, each filtered to its own date range. This is the identical computation the iOS view runs.
     private static func computeCurrentAndLastPaydownFromDynamoDB(
         userId: String,
         accountStore: any AccountStoreProtocol,
@@ -1535,7 +1533,7 @@ struct GetRicherLambda {
                 body: #"{"error":"Invalid credentials"}"#
             )
         }
-        let (_, reports, body) = try await computeCurrentAndLastPaydownFromDynamoDB(
+        let (current, last, body) = try await computeCurrentAndLastPaydownFromDynamoDB(
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
@@ -1543,40 +1541,64 @@ struct GetRicherLambda {
             vendorStore: vendorStore,
             context: context
         )
+        struct BucketDTO: Encodable {
+            let sourceAccountId: Int?
+            let sourceAccountName: String
+            let ruleName: String
+            let amount: Double
+            let transactionCount: Int
+        }
+        struct CycleDTO: Encodable {
+            let amountToPay: Double
+            let buckets: [BucketDTO]
+        }
         struct AccountReportDTO: Encodable {
             let lunchMoneyId: Int
             let displayName: String
             let balance: String
-            let pendingAdjustment: Double
-            let postPeriodAdjustment: Double
-            let transferTotal: Double
-            let amountToPay: Double
+            let current: CycleDTO
+            let last: CycleDTO
         }
         struct WeeklyPaydownResult: Encodable {
             let periodStart: String
             let periodEnd: String
+            let currentPeriodStart: String
+            let currentPeriodEnd: String
             let body: String
             let accounts: [AccountReportDTO]
         }
-        let dtos = reports.map { r in
-            AccountReportDTO(
-                lunchMoneyId: r.account.lunchMoneyId,
-                displayName: r.account.displayName,
-                balance: r.account.balance,
-                pendingAdjustment: r.calculation.pendingAdjustment,
-                postPeriodAdjustment: r.calculation.postPeriodAdjustment,
-                transferTotal: r.transferTotal,
-                amountToPay: r.netAdjustedSpending
+        func cycleDTO(_ report: AccountPaydownReport?) -> CycleDTO {
+            let buckets = (report?.buckets ?? []).map {
+                BucketDTO(
+                    sourceAccountId: $0.sourceAccountId,
+                    sourceAccountName: $0.sourceAccountName,
+                    ruleName: $0.ruleName,
+                    amount: $0.amount,
+                    transactionCount: $0.transactionCount
+                )
+            }
+            return CycleDTO(amountToPay: report?.amountToPay ?? 0, buckets: buckets)
+        }
+        let dtos = last.map { lastReport -> AccountReportDTO in
+            let currentReport = current.first { $0.account.lunchMoneyId == lastReport.account.lunchMoneyId }
+            return AccountReportDTO(
+                lunchMoneyId: lastReport.account.lunchMoneyId,
+                displayName: lastReport.account.displayName,
+                balance: lastReport.account.balance,
+                current: cycleDTO(currentReport),
+                last: cycleDTO(lastReport)
             )
         }
         let result = WeeklyPaydownResult(
-            periodStart: reports.first?.periodStart ?? "",
-            periodEnd: reports.first?.periodEnd ?? "",
+            periodStart: last.first?.periodStart ?? "",
+            periodEnd: last.first?.periodEnd ?? "",
+            currentPeriodStart: current.first?.periodStart ?? "",
+            currentPeriodEnd: current.first?.periodEnd ?? "",
             body: body,
             accounts: dtos
         )
         let data = try JSONEncoder().encode(result)
-        context.logger.info("Computed weekly paydown for \(reports.count) credit account(s)")
+        context.logger.info("Computed weekly paydown for \(last.count) credit account(s)")
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],

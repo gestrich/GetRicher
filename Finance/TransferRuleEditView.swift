@@ -15,6 +15,10 @@ struct TransferRuleEditView: View {
     @State private var selectedVendorId: UUID?
     @State private var selectedSourceAccountId: Int = -1
     @State private var priority: Int = 0
+    /// "transfer" routes matched charges to a source account; "payment" excludes matched
+    /// transactions (card payments / settlements) from the paydown entirely.
+    @State private var kindRaw: String = "transfer"
+    private var isPayment: Bool { kindRaw == "payment" }
 
     private var isEditing: Bool { rule != nil }
 
@@ -25,8 +29,11 @@ struct TransferRuleEditView: View {
     var body: some View {
         Form {
             detailsSection
+            kindSection
             vendorSection
-            sourceAccountSection
+            if !isPayment {
+                sourceAccountSection
+            }
             prioritySection
         }
         .navigationTitle(isEditing ? "Edit Rule" : "New Rule")
@@ -46,6 +53,7 @@ struct TransferRuleEditView: View {
                 selectedVendorId = rule.vendor?.id
                 selectedSourceAccountId = rule.sourceAccountId ?? -1
                 priority = rule.priority
+                kindRaw = rule.kindRaw
             }
         }
     }
@@ -53,6 +61,19 @@ struct TransferRuleEditView: View {
     private var detailsSection: some View {
         Section("Details") {
             TextField("Name", text: $name)
+        }
+    }
+
+    private var kindSection: some View {
+        Section {
+            Picker("Kind", selection: $kindRaw) {
+                Text("Transfer (pay from an account)").tag("transfer")
+                Text("Payment (exclude from spending)").tag("payment")
+            }
+        } header: {
+            Text("Rule Kind")
+        } footer: {
+            Text("Transfer rules route matched charges to a source account. Payment rules mark matched transactions as card payments and exclude them from the paydown.")
         }
     }
 
@@ -96,20 +117,23 @@ struct TransferRuleEditView: View {
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let vendor = vendors.first { $0.id == selectedVendorId }
-        let sourceId = selectedSourceAccountId == -1 ? nil : selectedSourceAccountId
+        // Payment rules don't fund from a source account.
+        let sourceId = isPayment ? nil : (selectedSourceAccountId == -1 ? nil : selectedSourceAccountId)
 
         if let rule {
             rule.name = trimmedName
             rule.vendor = vendor
             rule.sourceAccountId = sourceId
             rule.priority = priority
+            rule.kindRaw = kindRaw
         } else {
             let newRule = PersistenceService.TransferRule(
                 name: trimmedName,
                 vendor: vendor,
                 sourceAccountId: sourceId,
                 targetAccountId: targetAccountId,
-                priority: priority
+                priority: priority,
+                kindRaw: kindRaw
             )
             modelContext.insert(newRule)
         }

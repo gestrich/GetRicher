@@ -194,20 +194,32 @@ extension APIClient {
         return try await post("/api/generate-report", body: nil)
     }
 
+    public struct WeeklyPaydownBucket: Decodable, Sendable {
+        public let sourceAccountId: Int?
+        public let sourceAccountName: String
+        public let ruleName: String
+        public let amount: Double
+        public let transactionCount: Int
+    }
+
+    public struct WeeklyPaydownCycle: Decodable, Sendable {
+        public let amountToPay: Double
+        public let buckets: [WeeklyPaydownBucket]
+    }
+
     public struct WeeklyPaydownAccount: Decodable, Sendable {
         public let lunchMoneyId: Int
         public let displayName: String
         public let balance: String
-        public let pendingAdjustment: Double
-        public let postPeriodAdjustment: Double
-        public let transferTotal: Double
-        /// Balance-based amount to pay (= netAdjustedSpending on the server).
-        public let amountToPay: Double
+        public let current: WeeklyPaydownCycle
+        public let last: WeeklyPaydownCycle
     }
 
     public struct WeeklyPaydown: Decodable, Sendable {
         public let periodStart: String
         public let periodEnd: String
+        public let currentPeriodStart: String
+        public let currentPeriodEnd: String
         public let body: String
         public let accounts: [WeeklyPaydownAccount]
     }
