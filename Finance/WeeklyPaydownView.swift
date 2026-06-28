@@ -62,6 +62,7 @@ struct WeeklyPaydownView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
+                            syncDiagnostics
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
@@ -120,6 +121,31 @@ struct WeeklyPaydownView: View {
                 }
             }
         }
+    }
+
+    // TEMP diagnostics for sync debugging — shows local rule state + last sync error.
+    private var syncDiagnostics: some View {
+        let total = transferRules.count
+        let deleted = transferRules.filter { $0.isDeleted }.count
+        let testRules = transferRules.filter { $0.name.localizedCaseInsensitiveContains("test") }
+        let testDesc = testRules.map { "\($0.name)[del=\($0.isDeleted),upd=\(Int($0.updatedAt.timeIntervalSinceReferenceDate))]" }.joined(separator: ", ")
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("SYNC DIAG").font(.caption2.bold()).foregroundStyle(.secondary)
+            Text("rules: \(total) total, \(deleted) deleted")
+                .font(.caption2.monospaced())
+            if !testDesc.isEmpty {
+                Text("test: \(testDesc)").font(.caption2.monospaced()).foregroundStyle(.orange)
+            }
+            Text("lastSync: \(transactionsModel.errorMessage ?? "ok")")
+                .font(.caption2.monospaced())
+                .foregroundStyle(transactionsModel.errorMessage == nil ? .green : .red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
+        .padding(.horizontal)
     }
 
     private var accountPicker: some View {

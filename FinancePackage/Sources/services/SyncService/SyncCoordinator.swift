@@ -1,4 +1,5 @@
 import ClientService
+import FinanceCoreSDK
 import Foundation
 import KeychainSDK
 import PersistenceService
@@ -63,12 +64,34 @@ public struct SyncCoordinator: Sendable {
         let localRules = (try? context.fetch(FetchDescriptor<PersistenceService.TransferRule>())) ?? []
         let domainVendors = localVendors.map { $0.toDomain() }
         let domainRules = localRules.map { $0.toDomain() }
-        let mergedVendors = try await syncClient.putVendors(username: username, password: password, vendors: domainVendors)
-        let mergedRules = try await syncClient.putTransferRules(username: username, password: password, rules: domainRules)
-        try RuleVendorSyncService().apply(vendors: mergedVendors, rules: mergedRules, context: context)
+        let mergedVendors: [FinanceCoreSDK.Vendor]
+        let mergedRules: [FinanceCoreSDK.TransferRule]
+        do {
+            mergedVendors = try await syncClient.putVendors(username: username, password: password, vendors: domainVendors)
+        } catch {
+            throw SyncError.mergeFailed("putVendors (sent \(domainVendors.count)): \(error)")
+        }
+        do {
+            mergedRules = try await syncClient.putTransferRules(username: username, password: password, rules: domainRules)
+        } catch {
+            throw SyncError.mergeFailed("putTransferRules (sent \(domainRules.count)): \(error)")
+        }
+        do {
+            try RuleVendorSyncService().apply(vendors: mergedVendors, rules: mergedRules, context: context)
+        } catch {
+            throw SyncError.mergeFailed("apply (\(mergedRules.count) rules, \(mergedVendors.count) vendors): \(error)")
+        }
     }
 }
 
-public enum SyncError: Error, Sendable {
+public enum SyncError: Error, Sendable, LocalizedError {
     case noCredentials
+    case mergeFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noCredentials: return "No credentials"
+        case .mergeFailed(let detail): return "Rule/vendor merge failed — \(detail)"
+        }
+    }
 }
