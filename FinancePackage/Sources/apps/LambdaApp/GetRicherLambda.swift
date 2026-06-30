@@ -28,7 +28,7 @@ struct GetRicherLambda {
             let userStore: any UserStoreProtocol = LoggingUserStore()
             let accountStore: any AccountStoreProtocol = LoggingAccountStore()
             let transactionStore: any TransactionStoreProtocol = LoggingTransactionStore()
-            let transferRuleStore: any TransferRuleStoreProtocol = LoggingTransferRuleStore()
+            let transactionTypeStore: any TransactionTypeStoreProtocol = LoggingTransactionTypeStore()
             let vendorStore: any VendorStoreProtocol = LoggingVendorStore()
             let subscriptionStore: any NotificationSubscriptionStoreProtocol = LoggingNotificationSubscriptionStore()
             let notificationClient: any PushNotificationClientProtocol = LoggingPushNotificationClient()
@@ -47,7 +47,7 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    transferRuleStore: transferRuleStore,
+                    transactionTypeStore: transactionTypeStore,
                     vendorStore: vendorStore,
                     subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
@@ -63,7 +63,7 @@ struct GetRicherLambda {
             let userStore = DynamoDBUserStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let accountStore = DynamoDBAccountStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let transactionStore = DynamoDBTransactionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
-            let transferRuleStore = DynamoDBTransferRuleStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
+            let transactionTypeStore = DynamoDBTransactionTypeStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let vendorStore = DynamoDBVendorStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let subscriptionStore = DynamoDBNotificationSubscriptionStore(awsClient: awsClient, region: region, tableName: dynamoTableName)
             let snsAppArn = ProcessInfo.processInfo.environment["SNS_PLATFORM_ARN"] ?? ""
@@ -85,7 +85,7 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    transferRuleStore: transferRuleStore,
+                    transactionTypeStore: transactionTypeStore,
                     vendorStore: vendorStore,
                     subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
@@ -108,7 +108,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
@@ -128,7 +128,7 @@ struct GetRicherLambda {
                     userStore: userStore,
                     accountStore: accountStore,
                     transactionStore: transactionStore,
-                    transferRuleStore: transferRuleStore,
+                    transactionTypeStore: transactionTypeStore,
                     vendorStore: vendorStore,
                     subscriptionStore: subscriptionStore,
                     notificationClient: notificationClient,
@@ -153,7 +153,7 @@ struct GetRicherLambda {
                         userStore: userStore,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
-                        transferRuleStore: transferRuleStore,
+                        transactionTypeStore: transactionTypeStore,
                         vendorStore: vendorStore,
                         tokenStore: tokenStore,
                         subscriptionStore: subscriptionStore,
@@ -189,7 +189,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
@@ -217,7 +217,7 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
-                transferRuleStore: transferRuleStore,
+                transactionTypeStore: transactionTypeStore,
                 vendorStore: vendorStore,
                 tokenStore: tokenStore,
                 subscriptionStore: subscriptionStore,
@@ -230,7 +230,7 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
-                transferRuleStore: transferRuleStore,
+                transactionTypeStore: transactionTypeStore,
                 vendorStore: vendorStore,
                 subscriptionStore: subscriptionStore,
                 notificationClient: notificationClient,
@@ -265,14 +265,14 @@ struct GetRicherLambda {
                 userStore: userStore,
                 accountStore: accountStore,
                 transactionStore: transactionStore,
-                transferRuleStore: transferRuleStore,
+                transactionTypeStore: transactionTypeStore,
                 vendorStore: vendorStore,
                 context: context
             )
-        } else if request.httpMethod == .get && request.path == "/api/transfer-rules" {
-            return try await handleGetTransferRules(event: request, userStore: userStore, transferRuleStore: transferRuleStore, context: context)
-        } else if request.httpMethod == .put && request.path == "/api/transfer-rules" {
-            return try await handlePutTransferRules(event: request, userStore: userStore, transferRuleStore: transferRuleStore, context: context)
+        } else if request.httpMethod == .get && request.path == "/api/transaction-types" {
+            return try await handleGetTransactionTypes(event: request, userStore: userStore, transactionTypeStore: transactionTypeStore, context: context)
+        } else if request.httpMethod == .put && request.path == "/api/transaction-types" {
+            return try await handlePutTransactionTypes(event: request, userStore: userStore, transactionTypeStore: transactionTypeStore, context: context)
         } else if request.httpMethod == .get && request.path == "/api/vendors" {
             return try await handleGetVendors(event: request, userStore: userStore, vendorStore: vendorStore, context: context)
         } else if request.httpMethod == .put && request.path == "/api/vendors" {
@@ -573,7 +573,7 @@ struct GetRicherLambda {
         userId: String,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         context: LambdaContext
     ) async throws -> (current: [AccountPaydownReport], last: [AccountPaydownReport], notificationBody: String) {
@@ -587,24 +587,20 @@ struct GetRicherLambda {
             startDate: lastRange.start,
             endDate: currentRange.end
         )
-        async let rulesFetch = transferRuleStore.fetchAll(userId: userId)
-        async let vendorsFetch = vendorStore.fetchAll(userId: userId)
+        async let typesFetch = transactionTypeStore.fetchAll(userId: userId)
         let accounts = try await accountsFetch
         let transactions = try await transactionsFetch
-        let rules = try await rulesFetch
-        let vendors = try await vendorsFetch
+        let types = try await typesFetch
         let lastReports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
-            rules: rules,
-            vendors: vendors,
+            types: types,
             dateRange: lastRange
         )
         let currentReports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
-            rules: rules,
-            vendors: vendors,
+            types: types,
             dateRange: currentRange
         )
         let body = WeeklyPaydownReport.notificationBody(from: lastReports)
@@ -621,7 +617,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
@@ -642,7 +638,7 @@ struct GetRicherLambda {
                         fired: fired,
                         accountStore: accountStore,
                         transactionStore: transactionStore,
-                        transferRuleStore: transferRuleStore,
+                        transactionTypeStore: transactionTypeStore,
                         vendorStore: vendorStore,
                         allTokens: allTokens,
                         subscriptionStore: subscriptionStore,
@@ -669,7 +665,7 @@ struct GetRicherLambda {
         fired: [ScheduleEvaluator.FiredSubscription],
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         allTokens: [DeviceToken],
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
@@ -681,7 +677,7 @@ struct GetRicherLambda {
             userId: userId,
             accountStore: accountStore,
             transactionStore: transactionStore,
-            transferRuleStore: transferRuleStore,
+            transactionTypeStore: transactionTypeStore,
             vendorStore: vendorStore,
             context: context
         )
@@ -725,7 +721,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         tokenStore: any DeviceTokenStoreProtocol,
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
@@ -737,7 +733,7 @@ struct GetRicherLambda {
             userStore: userStore,
             accountStore: accountStore,
             transactionStore: transactionStore,
-            transferRuleStore: transferRuleStore,
+            transactionTypeStore: transactionTypeStore,
             vendorStore: vendorStore,
             tokenStore: tokenStore,
             subscriptionStore: subscriptionStore,
@@ -925,7 +921,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         subscriptionStore: any NotificationSubscriptionStoreProtocol,
         notificationClient: any PushNotificationClientProtocol,
@@ -989,7 +985,7 @@ struct GetRicherLambda {
             fired: fired,
             accountStore: accountStore,
             transactionStore: transactionStore,
-            transferRuleStore: transferRuleStore,
+            transactionTypeStore: transactionTypeStore,
             vendorStore: vendorStore,
             allTokens: allTokens,
             subscriptionStore: subscriptionStore,
@@ -1410,10 +1406,10 @@ struct GetRicherLambda {
         return user
     }
 
-    private static func handleGetTransferRules(
+    private static func handleGetTransactionTypes(
         event: APIGatewayRequest,
         userStore: any UserStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
         guard let user = try await authenticatedUser(
@@ -1423,9 +1419,9 @@ struct GetRicherLambda {
         ) else {
             return APIGatewayResponse(statusCode: .unauthorized, headers: ["Content-Type": "application/json"], body: #"{"error":"Invalid credentials"}"#)
         }
-        let rules = try await transferRuleStore.fetchAll(userId: user.username)
-        let data = try JSONEncoder().encode(rules)
-        context.logger.info("Fetched \(rules.count) transfer rule(s) for user \(user.username)")
+        let types = try await transactionTypeStore.fetchAll(userId: user.username)
+        let data = try JSONEncoder().encode(types)
+        context.logger.info("Fetched \(types.count) transaction type(s) for user \(user.username)")
         return APIGatewayResponse(
             statusCode: .ok,
             headers: ["Content-Type": "application/json"],
@@ -1433,13 +1429,13 @@ struct GetRicherLambda {
         )
     }
 
-    private static func handlePutTransferRules(
+    private static func handlePutTransactionTypes(
         event: APIGatewayRequest,
         userStore: any UserStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
-        struct Body: Decodable { let username: String; let password: String; let rules: [TransferRule] }
+        struct Body: Decodable { let username: String; let password: String; let types: [TransactionType] }
         guard let bodyString = event.body,
               let bodyData = bodyString.data(using: .utf8),
               let request = try? JSONDecoder().decode(Body.self, from: bodyData)
@@ -1451,10 +1447,10 @@ struct GetRicherLambda {
         }
         // Last-write-wins merge against what's stored, so a client's push never clobbers a newer
         // server-side change and deletions (tombstones) propagate. Persist + return the merged set.
-        let existing = try await transferRuleStore.fetchAll(userId: user.username)
-        let merged = lwwMerge(existing, request.rules)
-        try await transferRuleStore.replaceAll(merged, userId: user.username)
-        context.logger.info("Merged transfer rules for user \(user.username): \(existing.count) existing + \(request.rules.count) incoming → \(merged.count) stored")
+        let existing = try await transactionTypeStore.fetchAll(userId: user.username)
+        let merged = lwwMerge(existing, request.types)
+        try await transactionTypeStore.replaceAll(merged, userId: user.username)
+        context.logger.info("Merged transaction types for user \(user.username): \(existing.count) existing + \(request.types.count) incoming → \(merged.count) stored")
         let data = try JSONEncoder().encode(merged)
         return APIGatewayResponse(
             statusCode: .ok,
@@ -1520,7 +1516,7 @@ struct GetRicherLambda {
         userStore: any UserStoreProtocol,
         accountStore: any AccountStoreProtocol,
         transactionStore: any TransactionStoreProtocol,
-        transferRuleStore: any TransferRuleStoreProtocol,
+        transactionTypeStore: any TransactionTypeStoreProtocol,
         vendorStore: any VendorStoreProtocol,
         context: LambdaContext
     ) async throws -> APIGatewayResponse {
@@ -1546,25 +1542,35 @@ struct GetRicherLambda {
             userId: user.username,
             accountStore: accountStore,
             transactionStore: transactionStore,
-            transferRuleStore: transferRuleStore,
+            transactionTypeStore: transactionTypeStore,
             vendorStore: vendorStore,
             context: context
         )
-        struct BucketDTO: Encodable {
-            let sourceAccountId: Int?
-            let sourceAccountName: String
-            let ruleName: String
+        struct SpendBucketDTO: Encodable {
+            let typeName: String
+            let fundingAccountId: Int?
             let amount: Double
-            let transactionCount: Int
+            let count: Int
+        }
+        struct FundingOwedDTO: Encodable {
+            let fundingAccountId: Int
+            let fundingAccountName: String
+            let amount: Double
         }
         struct CycleDTO: Encodable {
-            let amountToPay: Double
-            let buckets: [BucketDTO]
+            let spendTotal: Double
+            let spendBuckets: [SpendBucketDTO]
+            let paymentsTotal: Double
+            let owedTotal: Double
+            let owedFromPrimary: Double
+            let fundedByAccount: [FundingOwedDTO]
+            let currentBalance: Double
+            let pendingInPeriod: Double
+            let postedAfterPeriod: Double
         }
         struct AccountReportDTO: Encodable {
             let lunchMoneyId: Int
             let displayName: String
-            let balance: String
             let current: CycleDTO
             let last: CycleDTO
         }
@@ -1577,23 +1583,27 @@ struct GetRicherLambda {
             let accounts: [AccountReportDTO]
         }
         func cycleDTO(_ report: AccountPaydownReport?) -> CycleDTO {
-            let buckets = (report?.buckets ?? []).map {
-                BucketDTO(
-                    sourceAccountId: $0.sourceAccountId,
-                    sourceAccountName: $0.sourceAccountName,
-                    ruleName: $0.ruleName,
-                    amount: $0.amount,
-                    transactionCount: $0.transactionCount
-                )
-            }
-            return CycleDTO(amountToPay: report?.amountToPay ?? 0, buckets: buckets)
+            CycleDTO(
+                spendTotal: report?.spend.total ?? 0,
+                spendBuckets: (report?.spend.buckets ?? []).map {
+                    SpendBucketDTO(typeName: $0.typeName, fundingAccountId: $0.fundingAccountId, amount: $0.amount, count: $0.count)
+                },
+                paymentsTotal: report?.payments.total ?? 0,
+                owedTotal: report?.owed.owedTotal ?? 0,
+                owedFromPrimary: report?.owed.owedFromPrimary ?? 0,
+                fundedByAccount: (report?.owed.fundedByAccount ?? []).map {
+                    FundingOwedDTO(fundingAccountId: $0.fundingAccountId, fundingAccountName: $0.fundingAccountName, amount: $0.amount)
+                },
+                currentBalance: report?.owed.currentBalance ?? 0,
+                pendingInPeriod: report?.owed.pendingInPeriod ?? 0,
+                postedAfterPeriod: report?.owed.postedAfterPeriod ?? 0
+            )
         }
         let dtos = last.map { lastReport -> AccountReportDTO in
             let currentReport = current.first { $0.account.lunchMoneyId == lastReport.account.lunchMoneyId }
             return AccountReportDTO(
                 lunchMoneyId: lastReport.account.lunchMoneyId,
                 displayName: lastReport.account.displayName,
-                balance: lastReport.account.balance,
                 current: cycleDTO(currentReport),
                 last: cycleDTO(lastReport)
             )

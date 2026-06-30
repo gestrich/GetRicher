@@ -33,7 +33,7 @@ struct DemoFinanceSyncClient: FinanceSyncClientProtocol {
 
     func triggerRefresh(username: String, password: String) async throws {}
 
-    func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws -> [TransferRule] { rules }
+    func putTransactionTypes(username: String, password: String, types: [TransactionType]) async throws -> [TransactionType] { types }
 
     func putVendors(username: String, password: String, vendors: [Vendor]) async throws -> [Vendor] { vendors }
 

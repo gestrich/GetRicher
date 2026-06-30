@@ -1,42 +1,41 @@
 import Foundation
 import SwiftData
 
+/// SwiftData model for a paydown `TransactionType`. `kindRaw` stores the `TransactionTypeKind`;
+/// `payeePatterns` is stored as a `[String]`. `isTombstoned` (NOT `isDeleted` — reserved by
+/// Core Data) is the soft-delete flag for last-write-wins sync.
 @Model
-public final class TransferRule {
+public final class TransactionType {
     public var id: UUID
     public var name: String
-    public var vendor: Vendor?
-    public var sourceAccountId: Int?
+    public var kindRaw: String
+    public var fundingAccountId: Int?
     public var targetAccountId: Int
+    public var payeePatterns: [String]
     public var priority: Int
-    /// Raw `RuleKind` ("transfer" | "payment"); default enables lightweight SwiftData migration.
-    public var kindRaw: String = "transfer"
     public var createdAt: Date
-    /// Last modification time for last-write-wins sync.
     public var updatedAt: Date = Date()
-    /// Soft-delete tombstone so deletions propagate. NOTE: must NOT be named `isDeleted` —
-    /// that collides with SwiftData/Core Data's reserved `isDeleted` and silently won't persist.
     public var isTombstoned: Bool = false
 
     public init(
         id: UUID = UUID(),
         name: String,
-        vendor: Vendor? = nil,
-        sourceAccountId: Int? = nil,
+        kindRaw: String,
+        fundingAccountId: Int? = nil,
         targetAccountId: Int,
+        payeePatterns: [String] = [],
         priority: Int = 0,
-        kindRaw: String = "transfer",
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isTombstoned: Bool = false
     ) {
         self.id = id
         self.name = name
-        self.vendor = vendor
-        self.sourceAccountId = sourceAccountId
-        self.targetAccountId = targetAccountId
-        self.priority = priority
         self.kindRaw = kindRaw
+        self.fundingAccountId = fundingAccountId
+        self.targetAccountId = targetAccountId
+        self.payeePatterns = payeePatterns
+        self.priority = priority
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isTombstoned = isTombstoned

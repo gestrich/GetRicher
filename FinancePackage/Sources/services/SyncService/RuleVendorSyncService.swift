@@ -2,19 +2,18 @@ import FinanceCoreSDK
 import PersistenceService
 import SwiftData
 
-/// Reconciles the server's merged Vendors + TransferRules into the local SwiftData store.
-/// Tombstones (isDeleted) are kept locally so future merges keep propagating the deletion.
-/// Vendors are applied first so rules can resolve their vendor relationship by id.
+/// Reconciles the server's merged Vendors + TransactionTypes into the local SwiftData store.
+/// Tombstones (`isTombstoned`) are kept locally so future merges keep propagating the deletion.
 public struct RuleVendorSyncService: Sendable {
     public init() {}
 
     @MainActor
     public func apply(
         vendors: [FinanceCoreSDK.Vendor],
-        rules: [FinanceCoreSDK.TransferRule],
+        types: [FinanceCoreSDK.TransactionType],
         context: ModelContext
     ) throws {
-        // MARK: Vendors
+        // MARK: Vendors (categorization / spending — separate from paydown)
         let existingVendors = try context.fetch(FetchDescriptor<PersistenceService.Vendor>())
         var vendorsById = Dictionary(existingVendors.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         for v in vendors {
@@ -27,49 +26,36 @@ public struct RuleVendorSyncService: Sendable {
                 local.isTombstoned = v.isDeleted
             } else {
                 let local = PersistenceService.Vendor(
-                    id: v.id,
-                    name: v.name,
-                    filterText: v.filterText,
-                    accountId: v.accountId,
-                    createdAt: v.createdAt,
-                    updatedAt: v.updatedAt,
-                    isTombstoned: v.isDeleted
+                    id: v.id, name: v.name, filterText: v.filterText, accountId: v.accountId,
+                    createdAt: v.createdAt, updatedAt: v.updatedAt, isTombstoned: v.isDeleted
                 )
                 context.insert(local)
                 vendorsById[v.id] = local
             }
         }
 
-        // MARK: Rules
-        let existingRules = try context.fetch(FetchDescriptor<PersistenceService.TransferRule>())
-        var rulesById = Dictionary(existingRules.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        for r in rules {
-            let vendor = r.vendor.flatMap { vendorsById[$0.id] }
-            if let local = rulesById[r.id] {
-                local.name = r.name
-                local.vendor = vendor
-                local.sourceAccountId = r.sourceAccountId
-                local.targetAccountId = r.targetAccountId
-                local.priority = r.priority
-                local.kindRaw = r.kind.rawValue
-                local.createdAt = r.createdAt
-                local.updatedAt = r.updatedAt
-                local.isTombstoned = r.isDeleted
+        // MARK: Transaction Types (paydown classification)
+        let existingTypes = try context.fetch(FetchDescriptor<PersistenceService.TransactionType>())
+        var typesById = Dictionary(existingTypes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for t in types {
+            if let local = typesById[t.id] {
+                local.name = t.name
+                local.kindRaw = t.kind.rawValue
+                local.fundingAccountId = t.fundingAccountId
+                local.targetAccountId = t.targetAccountId
+                local.payeePatterns = t.payeePatterns
+                local.priority = t.priority
+                local.createdAt = t.createdAt
+                local.updatedAt = t.updatedAt
+                local.isTombstoned = t.isDeleted
             } else {
-                let local = PersistenceService.TransferRule(
-                    id: r.id,
-                    name: r.name,
-                    vendor: vendor,
-                    sourceAccountId: r.sourceAccountId,
-                    targetAccountId: r.targetAccountId,
-                    priority: r.priority,
-                    kindRaw: r.kind.rawValue,
-                    createdAt: r.createdAt,
-                    updatedAt: r.updatedAt,
-                    isTombstoned: r.isDeleted
+                let local = PersistenceService.TransactionType(
+                    id: t.id, name: t.name, kindRaw: t.kind.rawValue, fundingAccountId: t.fundingAccountId,
+                    targetAccountId: t.targetAccountId, payeePatterns: t.payeePatterns, priority: t.priority,
+                    createdAt: t.createdAt, updatedAt: t.updatedAt, isTombstoned: t.isDeleted
                 )
                 context.insert(local)
-                rulesById[r.id] = local
+                typesById[t.id] = local
             }
         }
 

@@ -71,7 +71,7 @@ struct FinanceApp: App {
         _notificationSubscriptionsModel = State(initialValue: NotificationSubscriptionsModel(userAccountModel: userAccountModel))
 
         do {
-            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransferRule.self)
+            modelContainer = try ModelContainer(for: PersistenceService.Transaction.self, PersistenceService.PlaidAccount.self, PersistenceService.Tag.self, PersistenceService.Category.self, PersistenceService.Vendor.self, PersistenceService.TransactionType.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -93,6 +93,8 @@ struct FinanceApp: App {
                 .task {
                     if settingsModel.isDemoMode {
                         seedDemoVendorsAndRules()
+                    } else {
+                        seedTransactionTypesIfNeeded()
                     }
                     await notificationsModel.requestPermissionAndRegister()
                 }
@@ -153,33 +155,34 @@ struct FinanceApp: App {
             context.insert(vendor)
         }
 
-        let groceryRule = PersistenceService.TransferRule(
-            name: "Groceries → Savings",
-            vendor: wholeFoods,
-            sourceAccountId: 3,
+        // Demo transaction type: Groceries spend funded by a savings account.
+        context.insert(PersistenceService.TransactionType(
+            name: "Groceries",
+            kindRaw: "spend",
+            fundingAccountId: 3,
             targetAccountId: 2,
+            payeePatterns: ["Whole Foods", "Trader Joe"],
             priority: 10
-        )
+        ))
 
-        let groceryRule2 = PersistenceService.TransferRule(
-            name: "Groceries → Savings",
-            vendor: traderJoes,
-            sourceAccountId: 3,
-            targetAccountId: 2,
-            priority: 10
-        )
+        try? context.save()
+    }
 
-        let defaultRule = PersistenceService.TransferRule(
-            name: "Everything Else → Checking",
-            sourceAccountId: 1,
-            targetAccountId: 2,
-            priority: 0
-        )
+    /// One-time seed of the real paydown transaction types if none exist yet (non-demo). These sync
+    /// up to the server via last-write-wins, so server + app converge.
+    @MainActor
+    private func seedTransactionTypesIfNeeded() {
+        let context = modelContainer.mainContext
+        let existing = (try? context.fetch(FetchDescriptor<PersistenceService.TransactionType>())) ?? []
+        guard existing.filter({ !$0.isTombstoned }).isEmpty else { return }
 
-        for rule in [groceryRule, groceryRule2, defaultRule] {
-            context.insert(rule)
-        }
-
+        let core = 344066, points = 344065, reserve = 344059
+        let types = [
+            PersistenceService.TransactionType(name: "Cloud 9", kindRaw: "spend", fundingAccountId: reserve, targetAccountId: core, payeePatterns: ["Cloud 9"], priority: 10),
+            PersistenceService.TransactionType(name: "PNC Payment", kindRaw: "payment", targetAccountId: core, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 100),
+            PersistenceService.TransactionType(name: "PNC Payment", kindRaw: "payment", targetAccountId: points, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 100),
+        ]
+        for t in types { context.insert(t) }
         try? context.save()
     }
 

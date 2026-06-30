@@ -2,7 +2,7 @@ import FinanceCoreSDK
 import Foundation
 import SotoDynamoDB
 
-public struct DynamoDBTransferRuleStore: TransferRuleStoreProtocol {
+public struct DynamoDBTransactionTypeStore: TransactionTypeStoreProtocol {
     private let db: DynamoDB
     private let tableName: String
 
@@ -11,37 +11,37 @@ public struct DynamoDBTransferRuleStore: TransferRuleStoreProtocol {
         self.tableName = tableName
     }
 
-    public func replaceAll(_ rules: [TransferRule], userId: String) async throws {
+    public func replaceAll(_ rules: [TransactionType], userId: String) async throws {
         try await deleteAll(userId: userId)
         for rule in rules {
             let payload = try JSONEncoder().encode(rule)
             let payloadString = String(data: payload, encoding: .utf8) ?? "{}"
             _ = try await db.updateItem(.init(
                 expressionAttributeValues: [
-                    ":recordType": .s("transferRule"),
+                    ":recordType": .s("transactionType"),
                     ":userId": .s(userId),
                     ":payload": .s(payloadString)
                 ],
-                key: ["id": .s("\(userId)#transferRule#\(rule.id.uuidString)")],
+                key: ["id": .s("\(userId)#transactionType#\(rule.id.uuidString)")],
                 tableName: tableName,
                 updateExpression: "SET recordType = :recordType, userId = :userId, payload = :payload"
             ))
         }
     }
 
-    public func fetchAll(userId: String) async throws -> [TransferRule] {
+    public func fetchAll(userId: String) async throws -> [TransactionType] {
         let items = try await db.scanAll(
             tableName: tableName,
             filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
-                ":t": .s("transferRule"),
+                ":t": .s("transactionType"),
                 ":u": .s(userId)
             ]
         )
         return items.compactMap { item in
             guard let payloadString = item["payload"]?.s,
                   let data = payloadString.data(using: .utf8),
-                  let rule = try? JSONDecoder().decode(TransferRule.self, from: data)
+                  let rule = try? JSONDecoder().decode(TransactionType.self, from: data)
             else { return nil }
             return rule
         }
@@ -52,7 +52,7 @@ public struct DynamoDBTransferRuleStore: TransferRuleStoreProtocol {
             tableName: tableName,
             filterExpression: "recordType = :t AND userId = :u",
             expressionAttributeValues: [
-                ":t": .s("transferRule"),
+                ":t": .s("transactionType"),
                 ":u": .s(userId)
             ]
         )

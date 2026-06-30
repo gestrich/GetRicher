@@ -16,8 +16,6 @@ public final class Vendor {
     /// that collides with SwiftData/Core Data's reserved `isDeleted` and silently won't persist.
     public var isTombstoned: Bool = false
 
-    @Relationship(inverse: \TransferRule.vendor) public var transferRules: [TransferRule]
-
     public init(
         id: UUID = UUID(),
         name: String,
@@ -38,6 +36,5 @@ public final class Vendor {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isTombstoned = isTombstoned
-        self.transferRules = []
     }
 }

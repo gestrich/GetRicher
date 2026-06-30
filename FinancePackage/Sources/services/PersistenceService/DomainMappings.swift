@@ -204,35 +204,35 @@ extension Vendor {
     }
 }
 
-extension TransferRule {
+extension TransactionType {
     @MainActor
-    public func toDomain() -> FinanceCoreSDK.TransferRule {
-        FinanceCoreSDK.TransferRule(
+    public func toDomain() -> FinanceCoreSDK.TransactionType {
+        FinanceCoreSDK.TransactionType(
             id: id,
             name: name,
-            vendor: vendor?.toDomain(),
-            sourceAccountId: sourceAccountId,
+            kind: FinanceCoreSDK.TransactionTypeKind(rawValue: kindRaw) ?? .spend,
+            fundingAccountId: fundingAccountId,
             targetAccountId: targetAccountId,
+            payeePatterns: payeePatterns,
             priority: priority,
-            kind: FinanceCoreSDK.RuleKind(rawValue: kindRaw) ?? .transfer,
             createdAt: createdAt,
             updatedAt: updatedAt,
             isDeleted: isTombstoned
         )
     }
 
-    convenience init(from rule: FinanceCoreSDK.TransferRule) {
+    convenience init(from type: FinanceCoreSDK.TransactionType) {
         self.init(
-            id: rule.id,
-            name: rule.name,
-            vendor: nil,
-            sourceAccountId: rule.sourceAccountId,
-            targetAccountId: rule.targetAccountId,
-            priority: rule.priority,
-            kindRaw: rule.kind.rawValue,
-            createdAt: rule.createdAt,
-            updatedAt: rule.updatedAt,
-            isTombstoned: rule.isDeleted
+            id: type.id,
+            name: type.name,
+            kindRaw: type.kind.rawValue,
+            fundingAccountId: type.fundingAccountId,
+            targetAccountId: type.targetAccountId,
+            payeePatterns: type.payeePatterns,
+            priority: type.priority,
+            createdAt: type.createdAt,
+            updatedAt: type.updatedAt,
+            isTombstoned: type.isDeleted
         )
     }
 }

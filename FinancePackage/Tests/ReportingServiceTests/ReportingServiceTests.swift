@@ -12,10 +12,11 @@ private extension Double {
 // MARK: - LWW merge
 
 @Suite struct LWWMergeTests {
-    private func rule(_ idSuffix: Int, name: String, updated: TimeInterval, deleted: Bool = false) -> TransferRule {
-        TransferRule(
+    private func rule(_ idSuffix: Int, name: String, updated: TimeInterval, deleted: Bool = false) -> TransactionType {
+        TransactionType(
             id: stableId(idSuffix),
             name: name,
+            kind: .spend,
             targetAccountId: 1,
             updatedAt: Date(timeIntervalSinceReferenceDate: updated),
             isDeleted: deleted
@@ -201,158 +202,92 @@ private func knownMonday() -> Date {
     }
 }
 
-// MARK: - TransferBreakdown (per-source charge allocation)
+// MARK: - TransactionClassifier
 
-@Suite struct TransferBreakdownTests {
-    @Test("no rules: all charges fall into one Unspecified bucket")
-    func computeNoMatchingRules() {
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: [makeTransaction(toBase: 50)],
-            vendors: [], rules: [], accounts: []
-        )
-        #expect(result.count == 1)
-        #expect(result[0].sourceAccountName == "Unspecified")
-        #expect(result[0].amount == 50)
+@Suite struct TransactionClassifierTests {
+    @Test("matches by payee substring; highest priority wins")
+    func classify() {
+        let cloud9 = TransactionType(name: "Cloud 9", kind: .spend, targetAccountId: 1, payeePatterns: ["Cloud 9"], priority: 1)
+        let pmt = TransactionType(name: "PNC Payment", kind: .payment, targetAccountId: 1, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 5)
+        let types = [cloud9, pmt]
+        #expect(TransactionClassifier.type(for: makeTransaction(payee: "Cloud 9 Aviation"), in: types)?.name == "Cloud 9")
+        #expect(TransactionClassifier.isPayment(makeTransaction(payee: "THANK YOU FOR YOUR PMT 06/20"), in: types))
+        #expect(TransactionClassifier.type(for: makeTransaction(payee: "Target"), in: types) == nil)
     }
 
-    @Test("matches transactions to a named vendor rule's source bucket")
-    func computeVendorRuleMatch() {
-        let vendor = Vendor(name: "Amazon", filterText: "amazon")
-        let rule = TransferRule(name: "Shopping", vendor: vendor, sourceAccountId: 10, targetAccountId: 1, priority: 1)
-        let tx = makeTransaction(id: 1, payee: "Amazon Prime", toBase: 120.0)
-        let sourceAccount = makeAccount(id: 10, type: "depository", balance: "500.00")
-
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: [tx],
-            vendors: [vendor], rules: [rule], accounts: [sourceAccount]
-        )
-
-        #expect(result.count == 1)
-        #expect(result[0].ruleName == "Shopping")
-        #expect(result[0].amount == 120.0)
-        #expect(result[0].sourceAccountName == "Account 10")
-    }
-
-    @Test("vendor-matched charges and the rest split into separate source buckets")
-    func computeVendorAndDefaultSplit() {
-        let cloud9 = Vendor(name: "Cloud 9", filterText: "cloud 9")
-        let cloud9Rule = TransferRule(name: "Cloud 9 → Reserve", vendor: cloud9, sourceAccountId: 10, targetAccountId: 1, priority: 1)
-        let defaultRule = TransferRule(name: "Everything Else → Payroll", vendor: nil, sourceAccountId: 20, targetAccountId: 1, priority: 0)
-        let reserve = makeAccount(id: 10, type: "depository")
-        let payroll = makeAccount(id: 20, type: "depository")
-        let txs = [
-            makeTransaction(id: 1, payee: "Cloud 9 Aviation", toBase: 200),
-            makeTransaction(id: 2, payee: "Target", toBase: 60),
-            makeTransaction(id: 3, payee: "Walmart", toBase: 40),
-        ]
-
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: txs,
-            vendors: [cloud9], rules: [cloud9Rule, defaultRule], accounts: [reserve, payroll]
-        )
-
-        #expect(result.count == 2)
-        let cloud9Bucket = result.first { $0.ruleName == "Cloud 9 → Reserve" }
-        let defaultBucket = result.first { $0.ruleName == "Everything Else → Payroll" }
-        #expect(cloud9Bucket?.amount == 200)
-        #expect(defaultBucket?.amount == 100) // 60 + 40
-    }
-
-    @Test("payment-kind rule excludes card payments from every bucket")
-    func computePaymentExclusion() {
-        let payVendor = Vendor(name: "PNC Payment", filterText: "THANK YOU FOR YOUR PMT")
-        let paymentRule = TransferRule(name: "PNC Payment", vendor: payVendor, targetAccountId: 1, kind: .payment)
-        let defaultRule = TransferRule(name: "Default", vendor: nil, sourceAccountId: 20, targetAccountId: 1)
-        let payroll = makeAccount(id: 20, type: "depository")
-        let txs = [
-            makeTransaction(id: 1, payee: "Target", toBase: 100),
-            makeTransaction(id: 2, payee: "THANK YOU FOR YOUR PMT 06/20 XXXX4705", toBase: -1000),
-        ]
-
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: txs,
-            vendors: [payVendor], rules: [paymentRule, defaultRule], accounts: [payroll]
-        )
-
-        // The -1000 payment is dropped entirely; only the $100 charge remains in the default bucket.
-        #expect(result.count == 1)
-        #expect(result[0].amount == 100)
-    }
-
-    @Test("refunds net against charges within their bucket (signed)")
-    func computeRefundNets() {
-        let defaultRule = TransferRule(name: "Default", vendor: nil, sourceAccountId: 20, targetAccountId: 1)
-        let payroll = makeAccount(id: 20, type: "depository")
-        let txs = [
-            makeTransaction(id: 1, payee: "Target", toBase: 500),
-            makeTransaction(id: 2, payee: "Target", toBase: -500), // mistaken charge refunded same period
-        ]
-        let result = TransferBreakdown.compute(
-            accountId: 1,
-            periodTransactions: txs,
-            vendors: [], rules: [defaultRule], accounts: [payroll]
-        )
-        #expect(result.count == 1)
-        #expect(result[0].amount == 0) // net zero — no overpay
+    @Test("tombstoned types never match")
+    func ignoresTombstones() {
+        let dead = TransactionType(name: "Cloud 9", kind: .spend, targetAccountId: 1, payeePatterns: ["Cloud 9"], isDeleted: true)
+        #expect(TransactionClassifier.type(for: makeTransaction(payee: "Cloud 9 Aviation"), in: [dead]) == nil)
     }
 }
 
-// MARK: - WeeklyPaydownReport (charge-allocation end-to-end)
+// MARK: - WeeklyPaydownReport — the three reports
 //
-// Models Bill's setup on PNC Core: Cloud 9 → Reserve, everything else → Payroll, and a
-// payment rule excluding "THANK YOU FOR YOUR PMT". The amount to pay is purely the period's
-// charges per source — a card payment posting can never inflate it.
+// Models Bill's PNC Core: Cloud 9 (spend, funded by Reserve) and PNC Payment (payment, excluded).
+// Total Spend sums non-payment txns by type; Payments Owed is balance-based with payments excluded
+// from the adjustments; the Cloud 9 funded spend is carved out of owedFromPrimary.
 
 @Suite struct WeeklyPaydownReportTests {
     private let coreId = 344066
     private let reserveId = 344059
-    private let payrollId = 344060
 
-    @Test("per-source buckets exclude payments and net refunds")
-    func perSourceAllocation() {
+    private func setup() -> (account: Account, types: [TransactionType], accounts: [Account]) {
         let core = Account(lunchMoneyId: coreId, name: "Core", displayName: "PNC Core", type: "credit",
                            subtype: "credit card", mask: "4705", institutionName: "PNC", status: "active",
-                           balance: "451.10", currency: "usd")
+                           balance: "1000.00", currency: "usd")
         let reserve = makeAccount(id: reserveId, type: "depository")
-        let payroll = makeAccount(id: payrollId, type: "depository")
-
-        let cloud9 = Vendor(name: "Cloud 9", filterText: "cloud 9")
-        let payVendor = Vendor(name: "PNC Payment", filterText: "THANK YOU FOR YOUR PMT")
-        let rules = [
-            TransferRule(name: "Cloud 9 → Reserve", vendor: cloud9, sourceAccountId: reserveId, targetAccountId: coreId, priority: 1),
-            TransferRule(name: "Everything Else → Payroll", vendor: nil, sourceAccountId: payrollId, targetAccountId: coreId, priority: 0),
-            TransferRule(name: "PNC Payment", vendor: payVendor, targetAccountId: coreId, kind: .payment),
+        let types = [
+            TransactionType(name: "Cloud 9", kind: .spend, fundingAccountId: reserveId, targetAccountId: coreId, payeePatterns: ["Cloud 9"], priority: 1),
+            TransactionType(name: "PNC Payment", kind: .payment, targetAccountId: coreId, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 5),
         ]
-        // Period 6/13–6/19; includes Cloud 9 charges, other charges, and a big card payment.
+        return (core, types, [core, reserve])
+    }
+
+    @Test("payments excluded from spend and owed; Cloud 9 carved out; refunds net")
+    func threeReports() {
+        let (_, types, accounts) = setup()
+        // Period 6/13–6/19. balance=1000.
         let txs = [
-            makeTransaction(id: 1, payee: "Cloud 9 Aviation", toBase: 197.30, date: "2026-06-14", plaidAccountId: coreId),
-            makeTransaction(id: 2, payee: "Target", toBase: 240.79, date: "2026-06-15", plaidAccountId: coreId),
-            makeTransaction(id: 3, payee: "Walmart", toBase: 60, date: "2026-06-16", plaidAccountId: coreId),
-            makeTransaction(id: 4, payee: "THANK YOU FOR YOUR PMT 06/16 XXXX4705", toBase: -962.96, date: "2026-06-16", plaidAccountId: coreId),
+            // in-period charges (posted)
+            makeTransaction(id: 1, payee: "Cloud 9 Aviation", toBase: 200, date: "2026-06-14", plaidAccountId: coreId),
+            makeTransaction(id: 2, payee: "Target", toBase: 100, date: "2026-06-15", plaidAccountId: coreId),
+            makeTransaction(id: 3, payee: "Target", toBase: -40, date: "2026-06-15", plaidAccountId: coreId), // refund nets
+            // in-period pending (not in balance)
+            makeTransaction(id: 4, payee: "Amazon", isPending: true, toBase: 50, date: "2026-06-16", plaidAccountId: coreId),
+            // a card payment in-period — excluded everywhere
+            makeTransaction(id: 5, payee: "THANK YOU FOR YOUR PMT 06/16", toBase: -300, date: "2026-06-16", plaidAccountId: coreId),
+            // post-period posted charge (in balance, belongs to next week) — subtracted from owed
+            makeTransaction(id: 6, payee: "Walmart", toBase: 70, date: "2026-06-22", plaidAccountId: coreId),
+            // post-period payment — excluded from owed adjustment
+            makeTransaction(id: 7, payee: "THANK YOU FOR YOUR PMT 06/22", toBase: -500, date: "2026-06-22", plaidAccountId: coreId),
         ]
 
-        let reports = WeeklyPaydownReport.compute(
-            accounts: [core, reserve, payroll],
-            transactions: txs,
-            rules: rules,
-            vendors: [cloud9, payVendor],
+        let report = WeeklyPaydownReport.compute(
+            accounts: accounts, transactions: txs, types: types,
             dateRange: PaydownDateRange(start: "2026-06-13", end: "2026-06-19")
-        )
+        )[0]
 
-        #expect(reports.count == 1)
-        let report = reports[0]
-        let reserveBucket = report.buckets.first { $0.sourceAccountName.contains("\(reserveId)") || $0.ruleName.contains("Cloud 9") }
-        let payrollBucket = report.buckets.first { $0.ruleName.contains("Everything Else") }
-        #expect((reserveBucket?.amount ?? 0).isApprox(197.30))
-        #expect((payrollBucket?.amount ?? 0).isApprox(300.79)) // 240.79 + 60, payment excluded
-        // Amount to pay is the sum of charge buckets — the −962.96 payment never inflates it.
-        #expect((report.amountToPay - 498.09).magnitude < 0.005)
+        // Total Spend: Cloud 9 (200) + Other (100 − 40 + 50 pending) = 200 + 110. Payments excluded.
+        #expect((report.spend.total).isApprox(310))
+        let cloud9Bucket = report.spend.buckets.first { $0.typeName == "Cloud 9" }
+        let otherBucket = report.spend.buckets.first { $0.typeName == "Other Spend" }
+        #expect((cloud9Bucket?.amount ?? 0).isApprox(200))
+        #expect((otherBucket?.amount ?? 0).isApprox(110))
 
-        let body = WeeklyPaydownReport.notificationBody(from: reports)
+        // Total Payments: 300 (in-period payment only).
+        #expect((report.payments.total).isApprox(300))
+        #expect(report.payments.count == 1)
+
+        // Payments Owed: balance 1000 + pending(50) − postedAfter(70, payment excluded) = 980.
+        #expect((report.owed.pendingInPeriod).isApprox(50))
+        #expect((report.owed.postedAfterPeriod).isApprox(70))
+        #expect((report.owed.owedTotal).isApprox(980))
+        // Cloud 9 (200) carved out to Reserve; owedFromPrimary = 980 − 200 = 780.
+        #expect((report.owed.fundedByAccount.first?.amount ?? 0).isApprox(200))
+        #expect((report.owed.owedFromPrimary).isApprox(780))
+
+        let body = WeeklyPaydownReport.notificationBody(from: [report])
         #expect(body.contains("PNC Core"))
     }
 }

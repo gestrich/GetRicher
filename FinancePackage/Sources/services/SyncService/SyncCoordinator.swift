@@ -50,7 +50,7 @@ public struct SyncCoordinator: Sendable {
         )
         let transactionResult = try transactionSync.sync(transactions: allTransactions, context: context)
 
-        // Last-write-wins merge of TransferRules + Vendors with the server, then adopt the merged
+        // Last-write-wins merge of TransactionTypes + Vendors with the server, then adopt the merged
         // result locally. Sends local state (incl. tombstones), the server merges and returns the
         // union, and we reconcile it back — so neither side clobbers the other.
         try await mergeRulesAndVendors(context: context, username: username, password: password)
@@ -61,25 +61,25 @@ public struct SyncCoordinator: Sendable {
     @MainActor
     public func mergeRulesAndVendors(context: ModelContext, username: String, password: String) async throws {
         let localVendors = (try? context.fetch(FetchDescriptor<PersistenceService.Vendor>())) ?? []
-        let localRules = (try? context.fetch(FetchDescriptor<PersistenceService.TransferRule>())) ?? []
+        let localTypes = (try? context.fetch(FetchDescriptor<PersistenceService.TransactionType>())) ?? []
         let domainVendors = localVendors.map { $0.toDomain() }
-        let domainRules = localRules.map { $0.toDomain() }
+        let domainTypes = localTypes.map { $0.toDomain() }
         let mergedVendors: [FinanceCoreSDK.Vendor]
-        let mergedRules: [FinanceCoreSDK.TransferRule]
+        let mergedTypes: [FinanceCoreSDK.TransactionType]
         do {
             mergedVendors = try await syncClient.putVendors(username: username, password: password, vendors: domainVendors)
         } catch {
             throw SyncError.mergeFailed("putVendors (sent \(domainVendors.count)): \(error)")
         }
         do {
-            mergedRules = try await syncClient.putTransferRules(username: username, password: password, rules: domainRules)
+            mergedTypes = try await syncClient.putTransactionTypes(username: username, password: password, types: domainTypes)
         } catch {
-            throw SyncError.mergeFailed("putTransferRules (sent \(domainRules.count)): \(error)")
+            throw SyncError.mergeFailed("putTransactionTypes (sent \(domainTypes.count)): \(error)")
         }
         do {
-            try RuleVendorSyncService().apply(vendors: mergedVendors, rules: mergedRules, context: context)
+            try RuleVendorSyncService().apply(vendors: mergedVendors, types: mergedTypes, context: context)
         } catch {
-            throw SyncError.mergeFailed("apply (\(mergedRules.count) rules, \(mergedVendors.count) vendors): \(error)")
+            throw SyncError.mergeFailed("apply (\(mergedTypes.count) types, \(mergedVendors.count) vendors): \(error)")
         }
     }
 }

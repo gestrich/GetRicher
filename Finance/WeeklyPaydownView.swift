@@ -14,7 +14,7 @@ struct WeeklyPaydownView: View {
     @Query(sort: \PersistenceService.Transaction.date, order: .reverse) var transactions: [PersistenceService.Transaction]
     @Query(sort: \PersistenceService.PlaidAccount.displayName) var accounts: [PersistenceService.PlaidAccount]
     @Query(sort: \PersistenceService.Vendor.name) var vendors: [PersistenceService.Vendor]
-    @Query(sort: \PersistenceService.TransferRule.priority) var transferRules: [PersistenceService.TransferRule]
+    @Query(sort: \PersistenceService.TransactionType.priority) var transactionTypes: [PersistenceService.TransactionType]
     @State private var vendorCreationTransaction: PersistenceService.Transaction?
     @AppStorage("paydownSelectedAccountId") private var selectedAccountId: Int = -1
 
@@ -28,10 +28,8 @@ struct WeeklyPaydownView: View {
         // Domain types for model computation
         let domainTransactions = transactions.map { $0.toDomain() }
         let domainAccounts = accounts.map { $0.toDomain() }
-        // Exclude tombstoned rules/vendors from the calc (the shared calc also guards, but keep
-        // the domain inputs clean).
-        let domainVendors = vendors.filter { !$0.isTombstoned }.map { $0.toDomain() }
-        let domainRules = transferRules.filter { !$0.isTombstoned }.map { $0.toDomain() }
+        // Live transaction types for the paydown calc (the shared calc also guards on isDeleted).
+        let domainTypes = transactionTypes.filter { !$0.isTombstoned }.map { $0.toDomain() }
 
         // Period date range (shared by domain and SwiftData transaction filters)
         let range = paydownModel.dateRange
@@ -62,14 +60,12 @@ struct WeeklyPaydownView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 20) {
-                            syncDiagnostics
                             accountPicker
                             periodHeader
                             if selectedAccount != nil {
-                                paydownBreakdownSection(
+                                paydownSections(
                                     domainAccounts: domainAccounts,
-                                    domainVendors: domainVendors,
-                                    domainRules: domainRules,
+                                    domainTypes: domainTypes,
                                     domainTransactions: domainTransactions
                                 )
                                 vendorChart(periodDomainTransactions: periodDomainTx)
@@ -90,9 +86,9 @@ struct WeeklyPaydownView: View {
                 if paydownModel.account(id: selectedAccountIdOrNil, from: accounts.map { $0.toDomain() }) != nil {
                     ToolbarItem(placement: .primaryAction) {
                         NavigationLink {
-                            TransferRulesListView(targetAccountId: selectedAccountId)
+                            TransactionTypesListView(targetAccountId: selectedAccountId)
                         } label: {
-                            Image(systemName: "arrow.left.arrow.right")
+                            Image(systemName: "tag")
                         }
                     }
                 }
@@ -121,31 +117,6 @@ struct WeeklyPaydownView: View {
                 }
             }
         }
-    }
-
-    // TEMP diagnostics for sync debugging — shows local rule state + last sync error.
-    private var syncDiagnostics: some View {
-        let total = transferRules.count
-        let deleted = transferRules.filter { $0.isTombstoned }.count
-        let testRules = transferRules.filter { $0.name.localizedCaseInsensitiveContains("test") }
-        let testDesc = testRules.map { "\($0.name)[del=\($0.isTombstoned),upd=\(Int($0.updatedAt.timeIntervalSinceReferenceDate))]" }.joined(separator: ", ")
-        return VStack(alignment: .leading, spacing: 2) {
-            Text("SYNC DIAG").font(.caption2.bold()).foregroundStyle(.secondary)
-            Text("rules: \(total) total, \(deleted) deleted")
-                .font(.caption2.monospaced())
-            if !testDesc.isEmpty {
-                Text("test: \(testDesc)").font(.caption2.monospaced()).foregroundStyle(.orange)
-            }
-            Text("lastSync: \(transactionsModel.errorMessage ?? "ok")")
-                .font(.caption2.monospaced())
-                .foregroundStyle(transactionsModel.errorMessage == nil ? .green : .red)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
-        .padding(.horizontal)
     }
 
     private var accountPicker: some View {
@@ -199,76 +170,117 @@ struct WeeklyPaydownView: View {
         .padding(.horizontal)
     }
 
-    /// Per-source paydown: each bucket = how much to transfer from a funding account to cover
-    /// that account's share of the period's charges. Card payments are excluded by the shared calc.
-    private func paydownBreakdownSection(
+    @ViewBuilder
+    private func paydownSections(
         domainAccounts: [FinanceCoreSDK.Account],
-        domainVendors: [FinanceCoreSDK.Vendor],
-        domainRules: [FinanceCoreSDK.TransferRule],
+        domainTypes: [FinanceCoreSDK.TransactionType],
         domainTransactions: [FinanceCoreSDK.Transaction]
     ) -> some View {
         let report = paydownModel.report(
             accountId: selectedAccountIdOrNil,
             accounts: domainAccounts,
             transactions: domainTransactions,
-            rules: domainRules,
-            vendors: domainVendors
+            types: domainTypes
         )
-        let buckets = report?.buckets ?? []
-        let total = report?.amountToPay ?? 0
+        amountToPaySection(report)
+        totalSpendSection(report)
+        totalPaymentsSection(report)
+    }
 
-        return VStack(spacing: 0) {
-            Text("Pay From Each Account")
-                .font(.headline)
-                .padding(.bottom, 12)
+    private func money(_ v: Double) -> String { CurrencyFormatter.format(amount: v, currency: "USD") }
 
-            if buckets.isEmpty {
-                Text("No charges in this period.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 6)
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
+    }
+
+    /// Balance-based amount to pay: owed from primary + any funded-account lines + the adjustment math.
+    private func amountToPaySection(_ report: AccountPaydownReport?) -> some View {
+        let owed = report?.owed
+        return card {
+            Text("Amount to Pay").font(.headline).padding(.bottom, 12)
+            HStack {
+                Text("From primary").font(.body)
+                Spacer()
+                Text(money(owed?.owedFromPrimary ?? 0)).font(.title2.bold()).foregroundStyle(.green)
+            }
+            .padding(.vertical, 4)
+            ForEach(owed?.fundedByAccount ?? []) { f in
+                HStack {
+                    Text("From \(f.fundingAccountName)").font(.body)
+                    Spacer()
+                    Text(money(f.amount)).font(.body.monospacedDigit())
+                }
+                .padding(.vertical, 4)
+            }
+            Divider().padding(.vertical, 8)
+            adjustmentRow("Current Balance", owed?.currentBalance ?? 0, sign: "")
+            adjustmentRow("Pending This Period", owed?.pendingInPeriod ?? 0, sign: "+")
+            adjustmentRow("Posted After Period", owed?.postedAfterPeriod ?? 0, sign: "−")
+            Text("Current balance, plus charges dated this week that haven't posted, minus charges that posted after the week. Card payments are excluded — they already reduced the balance.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+        }
+        .accessibilityIdentifier("PaydownCalculation")
+    }
+
+    private func adjustmentRow(_ label: String, _ amount: Double, sign: String) -> some View {
+        HStack {
+            if !sign.isEmpty { Text(sign).foregroundStyle(.secondary).frame(width: 16) }
+            Text(label).font(.body)
+            Spacer()
+            Text(money(amount)).font(.body.monospacedDigit())
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Total Spend bucketed by transaction type (payments excluded).
+    private func totalSpendSection(_ report: AccountPaydownReport?) -> some View {
+        let spend = report?.spend
+        return card {
+            Text("Total Spend").font(.headline).padding(.bottom, 12)
+            if (spend?.buckets ?? []).isEmpty {
+                Text("No spend this period.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 6)
             } else {
-                ForEach(buckets) { bucket in
+                ForEach(spend?.buckets ?? []) { b in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(bucket.sourceAccountName)
-                                .font(.body)
-                            Text("\(bucket.ruleName) — \(bucket.transactionCount) transaction\(bucket.transactionCount == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(b.typeName).font(.body)
+                            Text("\(b.count) transaction\(b.count == 1 ? "" : "s")").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text(CurrencyFormatter.format(amount: bucket.amount, currency: "USD"))
-                            .font(.body.monospacedDigit())
+                        Text(money(b.amount)).font(.body.monospacedDigit())
                     }
                     .padding(.vertical, 6)
                 }
             }
-
-            Divider()
-                .padding(.vertical, 8)
-
+            Divider().padding(.vertical, 8)
             HStack {
-                Text("Amount to Pay")
-                    .font(.title2.bold())
+                Text("Total").font(.title3.bold())
                 Spacer()
-                Text(CurrencyFormatter.format(amount: total, currency: "USD"))
-                    .font(.title2.bold())
-                    .foregroundStyle(.green)
+                Text(money(spend?.total ?? 0)).font(.title3.bold())
             }
-
-            Text("Each row is a transfer from that account for the charges it funds. Card payments are excluded.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .padding(.horizontal)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PaydownCalculation")
+    }
+
+    /// Total Payments made toward the card this period.
+    private func totalPaymentsSection(_ report: AccountPaydownReport?) -> some View {
+        let payments = report?.payments
+        return card {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Total Payments").font(.headline)
+                    Text("\(payments?.count ?? 0) payment\((payments?.count ?? 0) == 1 ? "" : "s") this period")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(money(payments?.total ?? 0)).font(.title2.bold()).foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func vendorChart(periodDomainTransactions: [FinanceCoreSDK.Transaction]) -> some View {

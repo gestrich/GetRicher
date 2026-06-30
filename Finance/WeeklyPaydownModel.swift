@@ -62,15 +62,13 @@ class WeeklyPaydownModel {
         accountId: Int?,
         accounts: [Account],
         transactions: [Transaction],
-        rules: [TransferRule],
-        vendors: [Vendor]
+        types: [TransactionType]
     ) -> AccountPaydownReport? {
         guard let accountId else { return nil }
         let reports = WeeklyPaydownReport.compute(
             accounts: accounts,
             transactions: transactions,
-            rules: rules,
-            vendors: vendors,
+            types: types,
             dateRange: dateRange
         )
         return reports.first { $0.account.lunchMoneyId == accountId }

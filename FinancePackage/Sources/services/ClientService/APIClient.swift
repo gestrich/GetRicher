@@ -194,25 +194,36 @@ extension APIClient {
         return try await post("/api/generate-report", body: nil)
     }
 
-    public struct WeeklyPaydownBucket: Decodable, Sendable {
-        public let sourceAccountId: Int?
-        public let sourceAccountName: String
-        public let ruleName: String
+    public struct WeeklySpendBucketDTO: Decodable, Sendable {
+        public let typeName: String
+        public let fundingAccountId: Int?
         public let amount: Double
-        public let transactionCount: Int
+        public let count: Int
     }
 
-    public struct WeeklyPaydownCycle: Decodable, Sendable {
-        public let amountToPay: Double
-        public let buckets: [WeeklyPaydownBucket]
+    public struct FundingOwedDTO: Decodable, Sendable {
+        public let fundingAccountId: Int
+        public let fundingAccountName: String
+        public let amount: Double
+    }
+
+    public struct PaydownCycleDTO: Decodable, Sendable {
+        public let spendTotal: Double
+        public let spendBuckets: [WeeklySpendBucketDTO]
+        public let paymentsTotal: Double
+        public let owedTotal: Double
+        public let owedFromPrimary: Double
+        public let fundedByAccount: [FundingOwedDTO]
+        public let currentBalance: Double
+        public let pendingInPeriod: Double
+        public let postedAfterPeriod: Double
     }
 
     public struct WeeklyPaydownAccount: Decodable, Sendable {
         public let lunchMoneyId: Int
         public let displayName: String
-        public let balance: String
-        public let current: WeeklyPaydownCycle
-        public let last: WeeklyPaydownCycle
+        public let current: PaydownCycleDTO
+        public let last: PaydownCycleDTO
     }
 
     public struct WeeklyPaydown: Decodable, Sendable {
@@ -224,26 +235,26 @@ extension APIClient {
         public let accounts: [WeeklyPaydownAccount]
     }
 
-    /// Sends the client's TransferRules to the server, which last-write-wins merges them with what
-    /// it has and returns the merged set (including tombstones). The caller adopts the result so
-    /// the two stores converge instead of one clobbering the other.
+    /// Sends the client's TransactionTypes to the server, which last-write-wins merges them and
+    /// returns the merged set (including tombstones). The caller adopts the result so the two
+    /// stores converge instead of one clobbering the other.
     @discardableResult
-    public func putTransferRules(username: String, password: String, rules: [TransferRule]) async throws -> [TransferRule] {
-        struct Body: Encodable { let username: String; let password: String; let rules: [TransferRule] }
-        let body = try JSONEncoder().encode(Body(username: username, password: password, rules: rules))
-        let data = try await put("/api/transfer-rules", body: body, headers: ["Content-Type": "application/json"])
-        return try decodeOrThrow([TransferRule].self, from: data)
+    public func putTransactionTypes(username: String, password: String, types: [TransactionType]) async throws -> [TransactionType] {
+        struct Body: Encodable { let username: String; let password: String; let types: [TransactionType] }
+        let body = try JSONEncoder().encode(Body(username: username, password: password, types: types))
+        let data = try await put("/api/transaction-types", body: body, headers: ["Content-Type": "application/json"])
+        return try decodeOrThrow([TransactionType].self, from: data)
     }
 
-    public func fetchTransferRules(username: String, password: String) async throws -> [TransferRule] {
+    public func fetchTransactionTypes(username: String, password: String) async throws -> [TransactionType] {
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "username", value: username),
             URLQueryItem(name: "password", value: password),
         ]
         let query = components.percentEncodedQuery ?? ""
-        let data = try await get("/api/transfer-rules?\(query)")
-        return try decodeOrThrow([TransferRule].self, from: data)
+        let data = try await get("/api/transaction-types?\(query)")
+        return try decodeOrThrow([TransactionType].self, from: data)
     }
 
     /// Sends the client's Vendors to the server, which last-write-wins merges and returns the

@@ -26,18 +26,25 @@ struct PaydownCommand: AsyncParsableCommand {
         }.value
 
         func money(_ v: Double) -> String { String(format: "$%.2f", v) }
-        func printCycle(_ label: String, _ cycle: APIClient.WeeklyPaydownCycle) {
-            print("  \(label): \(money(cycle.amountToPay))")
-            for b in cycle.buckets {
-                print("    • \(b.sourceAccountName) (\(b.ruleName)): \(money(b.amount)) — \(b.transactionCount) txn\(b.transactionCount == 1 ? "" : "s")")
+        func printCycle(_ label: String, _ c: APIClient.PaydownCycleDTO) {
+            print("  \(label):")
+            print("    Amount to Pay (primary): \(money(c.owedFromPrimary))")
+            for f in c.fundedByAccount {
+                print("      + \(money(f.amount)) from \(f.fundingAccountName)")
             }
+            print("      (balance \(money(c.currentBalance)) + pending \(money(c.pendingInPeriod)) − postedAfter \(money(c.postedAfterPeriod)) = owed \(money(c.owedTotal)))")
+            print("    Total Spend: \(money(c.spendTotal))")
+            for b in c.spendBuckets {
+                print("      • \(b.typeName): \(money(b.amount)) — \(b.count) txn\(b.count == 1 ? "" : "s")")
+            }
+            print("    Total Payments: \(money(c.paymentsTotal))")
         }
 
         print("Last cycle:    \(result.periodStart) → \(result.periodEnd)")
         print("Current cycle: \(result.currentPeriodStart) → \(result.currentPeriodEnd)")
         print(String(repeating: "─", count: 60))
         for account in result.accounts {
-            print("\(account.displayName)  (balance \(account.balance))")
+            print("\(account.displayName)")
             printCycle("Last", account.last)
             printCycle("Current", account.current)
         }
