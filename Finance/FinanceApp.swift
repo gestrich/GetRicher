@@ -93,9 +93,9 @@ struct FinanceApp: App {
                 .task {
                     if settingsModel.isDemoMode {
                         seedDemoVendorsAndRules()
-                    } else {
-                        seedTransactionTypesIfNeeded()
                     }
+                    // Real transaction types come from the server (seeded there) and arrive via the
+                    // first sync's last-write-wins merge — no local seed, so no duplicates.
                     await notificationsModel.requestPermissionAndRegister()
                 }
                 .task(id: otelTaskID) {
@@ -165,24 +165,6 @@ struct FinanceApp: App {
             priority: 10
         ))
 
-        try? context.save()
-    }
-
-    /// One-time seed of the real paydown transaction types if none exist yet (non-demo). These sync
-    /// up to the server via last-write-wins, so server + app converge.
-    @MainActor
-    private func seedTransactionTypesIfNeeded() {
-        let context = modelContainer.mainContext
-        let existing = (try? context.fetch(FetchDescriptor<PersistenceService.TransactionType>())) ?? []
-        guard existing.filter({ !$0.isTombstoned }).isEmpty else { return }
-
-        let core = 344066, points = 344065, reserve = 344059
-        let types = [
-            PersistenceService.TransactionType(name: "Cloud 9", kindRaw: "spend", fundingAccountId: reserve, targetAccountId: core, payeePatterns: ["Cloud 9"], priority: 10),
-            PersistenceService.TransactionType(name: "PNC Payment", kindRaw: "payment", targetAccountId: core, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 100),
-            PersistenceService.TransactionType(name: "PNC Payment", kindRaw: "payment", targetAccountId: points, payeePatterns: ["THANK YOU FOR YOUR PMT"], priority: 100),
-        ]
-        for t in types { context.insert(t) }
         try? context.save()
     }
 
