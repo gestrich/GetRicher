@@ -182,9 +182,10 @@ struct WeeklyPaydownView: View {
             transactions: domainTransactions,
             types: domainTypes
         )
-        amountToPaySection(report)
+        // Breakdowns first, then the derived Amount to Pay result underneath.
         totalSpendSection(report)
         totalPaymentsSection(report)
+        amountToPaySection(report)
     }
 
     private func money(_ v: Double) -> String { CurrencyFormatter.format(amount: v, currency: "USD") }
@@ -205,52 +206,37 @@ struct WeeklyPaydownView: View {
             .padding(.horizontal)
     }
 
-    /// A calculation row that drills into its contributing transactions when there are any.
+    /// Compact "Amount to Pay" result — taps through to the full derivation (which drills into
+    /// transactions). Shown last, as the result of the calculation.
     @ViewBuilder
-    private func traceableRow(_ label: String, amount: Double, sign: String = "", bold: Bool = false, ids: [Int]) -> some View {
-        let content = HStack {
-            if !sign.isEmpty { Text(sign).foregroundStyle(.secondary).frame(width: 16) }
-            Text(label).font(bold ? .body.bold() : .body)
-            Spacer()
-            Text(money(amount)).font((bold ? Font.body.bold() : Font.body).monospacedDigit())
-            if !ids.isEmpty {
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-
-        if ids.isEmpty {
-            content
-        } else {
-            NavigationLink { FilteredTransactionListView(title: label, transactions: txns(ids)) } label: { content }
-                .buttonStyle(.plain)
-        }
-    }
-
-    /// Balance-based amount to pay: owed from primary + any funded-account lines + the adjustment math.
     private func amountToPaySection(_ report: AccountPaydownReport?) -> some View {
-        let owed = report?.owed
-        return card {
-            Text("Amount to Pay").font(.headline).padding(.bottom, 12)
-            HStack {
-                Text("From primary").font(.body)
-                Spacer()
-                Text(money(owed?.owedFromPrimary ?? 0)).font(.title2.bold()).foregroundStyle(.green)
+        if let report {
+            NavigationLink {
+                PaydownCalculationView(report: report, allTransactions: transactions)
+            } label: {
+                card {
+                    HStack {
+                        Text("Amount to Pay").font(.headline)
+                        Spacer()
+                        Text(money(report.owed.owedFromPrimary)).font(.title.bold()).foregroundStyle(.green)
+                        Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+                    }
+                    ForEach(report.owed.fundedByAccount) { f in
+                        HStack {
+                            Text("+ \(money(f.amount)) from \(f.fundingAccountName)")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(.top, 2)
+                    }
+                    Text("From primary. Tap to see how it's calculated.")
+                        .font(.caption).foregroundStyle(.secondary).padding(.top, 6)
+                }
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 4)
-            ForEach(owed?.fundedByAccount ?? []) { f in
-                traceableRow("From \(f.fundingAccountName)", amount: f.amount, ids: f.transactionIds)
-            }
-            Divider().padding(.vertical, 8)
-            traceableRow("Current Balance", amount: owed?.currentBalance ?? 0, ids: [])
-            traceableRow("Pending This Period", amount: owed?.pendingInPeriod ?? 0, sign: "+", ids: owed?.pendingTransactionIds ?? [])
-            traceableRow("Posted After Period", amount: owed?.postedAfterPeriod ?? 0, sign: "−", ids: owed?.postedAfterTransactionIds ?? [])
-            Text("Current balance, plus charges dated this week that haven't posted, minus charges that posted after the week. Tap a row to see its transactions. Card payments are excluded — they already reduced the balance.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("PaydownCalculation")
         }
-        .accessibilityIdentifier("PaydownCalculation")
     }
 
     /// Total Spend bucketed by transaction type (payments excluded). Each bucket drills in.
