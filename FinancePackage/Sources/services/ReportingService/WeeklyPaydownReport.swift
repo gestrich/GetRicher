@@ -38,7 +38,8 @@ public struct WeeklyPaydownReport {
                         typeName: value.type?.name ?? "Other Spend",
                         fundingAccountId: value.type?.fundingAccountId,
                         amount: value.txs.reduce(0.0) { $0 + $1.toBase },
-                        count: value.txs.count
+                        count: value.txs.count,
+                        transactionIds: value.txs.map { $0.lunchMoneyId }
                     )
                 }.sorted { abs($0.amount) > abs($1.amount) }
                 let spend = WeeklySpend(buckets: buckets)
@@ -47,29 +48,29 @@ public struct WeeklyPaydownReport {
                 let paymentTx = periodTx.filter { isPayment($0) }
                 let payments = WeeklyPayments(
                     total: paymentTx.reduce(0.0) { $0 + abs($1.toBase) },
-                    count: paymentTx.count
+                    count: paymentTx.count,
+                    transactionIds: paymentTx.map { $0.lunchMoneyId }
                 )
 
                 // --- Payments Owed: balance-based, payments excluded from adjustments ---
                 let balance = Double(account.balance) ?? 0.0
-                let pendingInPeriod = periodTx
-                    .filter { $0.isPending && !isPayment($0) }
-                    .reduce(0.0) { $0 + $1.toBase }
-                let postedAfterPeriod = postPeriodPosted
-                    .filter { !isPayment($0) }
-                    .reduce(0.0) { $0 + $1.toBase }
+                let pendingTx = periodTx.filter { $0.isPending && !isPayment($0) }
+                let postedAfterTx = postPeriodPosted.filter { !isPayment($0) }
+                let pendingInPeriod = pendingTx.reduce(0.0) { $0 + $1.toBase }
+                let postedAfterPeriod = postedAfterTx.reduce(0.0) { $0 + $1.toBase }
                 // Carve out in-period spend funded by other accounts (e.g. Cloud 9 → Reserve).
-                var fundedTotals: [Int: Double] = [:]
+                var fundedTxs: [Int: [Transaction]] = [:]
                 for tx in spendTx {
                     if let funding = TransactionClassifier.type(for: tx, in: accountTypes)?.fundingAccountId {
-                        fundedTotals[funding, default: 0] += tx.toBase
+                        fundedTxs[funding, default: []].append(tx)
                     }
                 }
-                let fundedByAccount = fundedTotals.map { accountId, amount in
+                let fundedByAccount = fundedTxs.map { accountId, txs in
                     FundingOwed(
                         fundingAccountId: accountId,
                         fundingAccountName: accounts.first { $0.lunchMoneyId == accountId }?.displayName ?? "Account \(accountId)",
-                        amount: amount
+                        amount: txs.reduce(0.0) { $0 + $1.toBase },
+                        transactionIds: txs.map { $0.lunchMoneyId }
                     )
                 }.sorted { $0.fundingAccountName < $1.fundingAccountName }
 
@@ -77,7 +78,9 @@ public struct WeeklyPaydownReport {
                     currentBalance: balance,
                     pendingInPeriod: pendingInPeriod,
                     postedAfterPeriod: postedAfterPeriod,
-                    fundedByAccount: fundedByAccount
+                    fundedByAccount: fundedByAccount,
+                    pendingTransactionIds: pendingTx.map { $0.lunchMoneyId },
+                    postedAfterTransactionIds: postedAfterTx.map { $0.lunchMoneyId }
                 )
 
                 return AccountPaydownReport(

@@ -11,14 +11,17 @@ public struct SpendBucket: Identifiable, Sendable {
     public let fundingAccountId: Int?
     public let amount: Double
     public let count: Int
+    /// lunchMoneyIds of the transactions in this bucket (for drill-down traceability).
+    public let transactionIds: [Int]
 
-    public init(id: UUID = UUID(), typeId: UUID?, typeName: String, fundingAccountId: Int?, amount: Double, count: Int) {
+    public init(id: UUID = UUID(), typeId: UUID?, typeName: String, fundingAccountId: Int?, amount: Double, count: Int, transactionIds: [Int] = []) {
         self.id = id
         self.typeId = typeId
         self.typeName = typeName
         self.fundingAccountId = fundingAccountId
         self.amount = amount
         self.count = count
+        self.transactionIds = transactionIds
     }
 }
 
@@ -35,7 +38,10 @@ public struct WeeklySpend: Sendable {
 public struct WeeklyPayments: Sendable {
     public let total: Double // positive amount paid
     public let count: Int
-    public init(total: Double, count: Int) { self.total = total; self.count = count }
+    public let transactionIds: [Int]
+    public init(total: Double, count: Int, transactionIds: [Int] = []) {
+        self.total = total; self.count = count; self.transactionIds = transactionIds
+    }
 }
 
 // MARK: - Payments Owed
@@ -46,12 +52,14 @@ public struct FundingOwed: Identifiable, Sendable {
     public let fundingAccountId: Int
     public let fundingAccountName: String
     public let amount: Double
+    public let transactionIds: [Int]
 
-    public init(id: UUID = UUID(), fundingAccountId: Int, fundingAccountName: String, amount: Double) {
+    public init(id: UUID = UUID(), fundingAccountId: Int, fundingAccountName: String, amount: Double, transactionIds: [Int] = []) {
         self.id = id
         self.fundingAccountId = fundingAccountId
         self.fundingAccountName = fundingAccountName
         self.amount = amount
+        self.transactionIds = transactionIds
     }
 }
 
@@ -69,12 +77,17 @@ public struct PaymentsOwed: Sendable {
     public let fundedByAccount: [FundingOwed]
     /// owedTotal − Σ fundedByAccount — what you pay from your primary account.
     public let owedFromPrimary: Double
+    /// Contributing transaction lunchMoneyIds for drill-down traceability.
+    public let pendingTransactionIds: [Int]
+    public let postedAfterTransactionIds: [Int]
 
     public init(
         currentBalance: Double,
         pendingInPeriod: Double,
         postedAfterPeriod: Double,
-        fundedByAccount: [FundingOwed]
+        fundedByAccount: [FundingOwed],
+        pendingTransactionIds: [Int] = [],
+        postedAfterTransactionIds: [Int] = []
     ) {
         self.currentBalance = currentBalance
         self.pendingInPeriod = pendingInPeriod
@@ -83,5 +96,7 @@ public struct PaymentsOwed: Sendable {
         self.fundedByAccount = fundedByAccount
         self.owedFromPrimary = (currentBalance + pendingInPeriod - postedAfterPeriod)
             - fundedByAccount.reduce(0.0) { $0 + $1.amount }
+        self.pendingTransactionIds = pendingTransactionIds
+        self.postedAfterTransactionIds = postedAfterTransactionIds
     }
 }

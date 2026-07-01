@@ -189,6 +189,13 @@ struct WeeklyPaydownView: View {
 
     private func money(_ v: Double) -> String { CurrencyFormatter.format(amount: v, currency: "USD") }
 
+    /// SwiftData transactions (with detail navigation) for the given lunchMoneyIds.
+    private func txns(_ ids: [Int]) -> [PersistenceService.Transaction] {
+        guard !ids.isEmpty else { return [] }
+        let set = Set(ids)
+        return transactions.filter { set.contains($0.lunchMoneyId) }
+    }
+
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,6 +203,29 @@ struct WeeklyPaydownView: View {
             .background(Color(.systemBackground))
             .cornerRadius(12)
             .padding(.horizontal)
+    }
+
+    /// A calculation row that drills into its contributing transactions when there are any.
+    @ViewBuilder
+    private func traceableRow(_ label: String, amount: Double, sign: String = "", bold: Bool = false, ids: [Int]) -> some View {
+        let content = HStack {
+            if !sign.isEmpty { Text(sign).foregroundStyle(.secondary).frame(width: 16) }
+            Text(label).font(bold ? .body.bold() : .body)
+            Spacer()
+            Text(money(amount)).font((bold ? Font.body.bold() : Font.body).monospacedDigit())
+            if !ids.isEmpty {
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+
+        if ids.isEmpty {
+            content
+        } else {
+            NavigationLink { FilteredTransactionListView(title: label, transactions: txns(ids)) } label: { content }
+                .buttonStyle(.plain)
+        }
     }
 
     /// Balance-based amount to pay: owed from primary + any funded-account lines + the adjustment math.
@@ -210,35 +240,20 @@ struct WeeklyPaydownView: View {
             }
             .padding(.vertical, 4)
             ForEach(owed?.fundedByAccount ?? []) { f in
-                HStack {
-                    Text("From \(f.fundingAccountName)").font(.body)
-                    Spacer()
-                    Text(money(f.amount)).font(.body.monospacedDigit())
-                }
-                .padding(.vertical, 4)
+                traceableRow("From \(f.fundingAccountName)", amount: f.amount, ids: f.transactionIds)
             }
             Divider().padding(.vertical, 8)
-            adjustmentRow("Current Balance", owed?.currentBalance ?? 0, sign: "")
-            adjustmentRow("Pending This Period", owed?.pendingInPeriod ?? 0, sign: "+")
-            adjustmentRow("Posted After Period", owed?.postedAfterPeriod ?? 0, sign: "−")
-            Text("Current balance, plus charges dated this week that haven't posted, minus charges that posted after the week. Card payments are excluded — they already reduced the balance.")
+            traceableRow("Current Balance", amount: owed?.currentBalance ?? 0, ids: [])
+            traceableRow("Pending This Period", amount: owed?.pendingInPeriod ?? 0, sign: "+", ids: owed?.pendingTransactionIds ?? [])
+            traceableRow("Posted After Period", amount: owed?.postedAfterPeriod ?? 0, sign: "−", ids: owed?.postedAfterTransactionIds ?? [])
+            Text("Current balance, plus charges dated this week that haven't posted, minus charges that posted after the week. Tap a row to see its transactions. Card payments are excluded — they already reduced the balance.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
         }
         .accessibilityIdentifier("PaydownCalculation")
     }
 
-    private func adjustmentRow(_ label: String, _ amount: Double, sign: String) -> some View {
-        HStack {
-            if !sign.isEmpty { Text(sign).foregroundStyle(.secondary).frame(width: 16) }
-            Text(label).font(.body)
-            Spacer()
-            Text(money(amount)).font(.body.monospacedDigit())
-        }
-        .padding(.vertical, 4)
-    }
-
-    /// Total Spend bucketed by transaction type (payments excluded).
+    /// Total Spend bucketed by transaction type (payments excluded). Each bucket drills in.
     private func totalSpendSection(_ report: AccountPaydownReport?) -> some View {
         let spend = report?.spend
         return card {
@@ -247,15 +262,20 @@ struct WeeklyPaydownView: View {
                 Text("No spend this period.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 6)
             } else {
                 ForEach(spend?.buckets ?? []) { b in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(b.typeName).font(.body)
-                            Text("\(b.count) transaction\(b.count == 1 ? "" : "s")").font(.caption).foregroundStyle(.secondary)
+                    NavigationLink { FilteredTransactionListView(title: b.typeName, transactions: txns(b.transactionIds)) } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(b.typeName).font(.body)
+                                Text("\(b.count) transaction\(b.count == 1 ? "" : "s")").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(money(b.amount)).font(.body.monospacedDigit())
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }
-                        Spacer()
-                        Text(money(b.amount)).font(.body.monospacedDigit())
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 6)
+                    .buttonStyle(.plain)
                 }
             }
             Divider().padding(.vertical, 8)
@@ -267,19 +287,26 @@ struct WeeklyPaydownView: View {
         }
     }
 
-    /// Total Payments made toward the card this period.
+    /// Total Payments made toward the card this period. Drills into the payment transactions.
     private func totalPaymentsSection(_ report: AccountPaydownReport?) -> some View {
         let payments = report?.payments
         return card {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Total Payments").font(.headline)
-                    Text("\(payments?.count ?? 0) payment\((payments?.count ?? 0) == 1 ? "" : "s") this period")
-                        .font(.caption).foregroundStyle(.secondary)
+            NavigationLink { FilteredTransactionListView(title: "Payments", transactions: txns(payments?.transactionIds ?? [])) } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Total Payments").font(.headline)
+                        Text("\(payments?.count ?? 0) payment\((payments?.count ?? 0) == 1 ? "" : "s") this period")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(money(payments?.total ?? 0)).font(.title2.bold()).foregroundStyle(.secondary)
+                    if (payments?.count ?? 0) > 0 {
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
                 }
-                Spacer()
-                Text(money(payments?.total ?? 0)).font(.title2.bold()).foregroundStyle(.secondary)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
     }
 
