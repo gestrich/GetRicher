@@ -38,7 +38,7 @@ export class LambdaConstruct extends Construct {
 
     this.function = new lambda.Function(this, 'Function', {
       functionName: 'get-richer',
-      runtime: lambda.Runtime.PROVIDED_AL2,
+      runtime: lambda.Runtime.PROVIDED_AL2023,
       handler: 'lambda_function.main',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../..', 'lambda.zip')),
       memorySize: props.memorySize,
